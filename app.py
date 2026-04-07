@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 from core.params import POP
 from core.model import kernels_one_state, dth_from_dae
 
+# =========================
+# Matplotlib 字体设置
+# =========================
 plt.rcParams["font.sans-serif"] = [
     "Noto Sans CJK SC",
     "Noto Sans CJK JP",
@@ -16,6 +19,9 @@ plt.rcParams["font.sans-serif"] = [
 ]
 plt.rcParams["axes.unicode_minus"] = False
 
+# =========================
+# 页面配置
+# =========================
 st.set_page_config(
     page_title="呼吸道颗粒物沉积计算软件",
     layout="wide"
@@ -51,14 +57,15 @@ REGION_LABELS_ZH = {
 }
 
 # =========================
-# 小工具函数
+# 工具函数
 # =========================
 def diag_from_K(K, reg: str) -> np.ndarray:
     """
     从 kernels_one_state 返回的 K['sum'][reg] 中提取对角线，
-    与原桌面版 main.py 的处理思路一致。
+    与桌面版 main.py 的处理思路保持一致。
     """
-    arr2d = np.asarray(K["sum"][reg], float)
+    arr2d = np.asarray(K["sum"][reg], dtype=float)
+
     if arr2d.ndim < 2 or arr2d.size == 0:
         return np.array([], dtype=float)
 
@@ -69,7 +76,7 @@ def diag_from_K(K, reg: str) -> np.ndarray:
     idx = np.arange(n)
     y = arr2d[idx, idx].astype(float)
 
-    # 若底层返回的是百分比而不是分数，则转成 0~1
+    # 若底层返回的是百分比而不是分数，则统一转换为 0~1
     if np.nanmax(y) > 1.05:
         y = y / 100.0
 
@@ -78,7 +85,7 @@ def diag_from_K(K, reg: str) -> np.ndarray:
 
 def calc_single_dep(pop_key, behavior_key, nose_breath, wind_speed, dae_um, rho_g, chi):
     """
-    单粒径沉积分数
+    计算单粒径沉积分数
     """
     base = POP[pop_key]["base"]
     beh = POP[pop_key]["behaviors"][behavior_key]
@@ -117,7 +124,7 @@ def calc_single_dep(pop_key, behavior_key, nose_breath, wind_speed, dae_um, rho_
 
 def calc_dep_curve(pop_key, behavior_key, nose_breath, wind_speed, rho_g, chi):
     """
-    沉积分数曲线
+    计算沉积分数曲线
     """
     base = POP[pop_key]["base"]
     beh = POP[pop_key]["behaviors"][behavior_key]
@@ -135,11 +142,17 @@ def calc_dep_curve(pop_key, behavior_key, nose_breath, wind_speed, rho_g, chi):
     )
 
     curve = {}
+    valid_lengths = []
+
     for region in REGIONS:
         y = diag_from_K(K, region)
         curve[region] = y
+        valid_lengths.append(len(y))
 
-    n = min(len(curve[r]) for r in REGIONS)
+    n = min(valid_lengths) if valid_lengths else 0
+    if n == 0:
+        raise ValueError("未能获得有效的沉积分数曲线数据。")
+
     dae = dae[:n]
 
     for region in REGIONS:
@@ -157,13 +170,64 @@ def calc_dep_curve(pop_key, behavior_key, nose_breath, wind_speed, rho_g, chi):
     }
 
 
+def make_single_result_df(single_result):
+    return pd.DataFrame({
+        "区域": [REGION_LABELS_ZH[r] for r in REGIONS] + ["总沉积分数"],
+        "沉积分数": [single_result["by_region"][r] for r in REGIONS] + [single_result["total"]]
+    })
+
+
+def plot_dep_curve(curve_result, pop_key, behavior_key, nose_breath, wind_speed):
+    fig, ax = plt.subplots(figsize=(10, 5.8))
+
+    dae_curve = curve_result["dae"]
+
+    for region in REGIONS:
+        ax.plot(
+            dae_curve,
+            curve_result["curve"][region],
+            label=REGION_LABELS_ZH[region],
+            linewidth=2.0
+        )
+
+    ax.plot(
+        dae_curve,
+        curve_result["total"],
+        label="总沉积分数",
+        linewidth=2.8
+    )
+
+    ax.set_xscale("log")
+    ax.set_xlim(dae_curve.min(), dae_curve.max())
+    ax.set_ylim(0, 1.02)
+    ax.set_xlabel("颗粒空气动力学直径（μm）", fontsize=12)
+    ax.set_ylabel("沉积分数", fontsize=12)
+    ax.tick_params(axis="both", labelsize=11)
+    ax.grid(which="major", linestyle="--", alpha=0.35)
+    ax.grid(which="minor", axis="x", linestyle=":", alpha=0.25)
+    ax.legend(frameon=False, ncol=3, fontsize=10)
+
+    title_breath = "鼻呼吸" if nose_breath else "口呼吸"
+    ax.set_title(
+        f"分区沉积分数曲线：{POP_LABELS_ZH.get(pop_key, pop_key)} / "
+        f"{STATE_LABELS_ZH.get(behavior_key, behavior_key)} / "
+        f"{title_breath} / U={wind_speed:g} m/s",
+        fontsize=13
+    )
+
+    fig.tight_layout()
+    return fig
+
+
 # =========================
-# 页面
+# 页面标题
 # =========================
 st.title("呼吸道颗粒物沉积计算软件")
 st.subheader("第一页：沉积分数计算")
 
-# ---------- 侧边栏 ----------
+# =========================
+# 侧边栏参数
+# =========================
 st.sidebar.header("参数设置")
 
 pop_key = st.sidebar.selectbox(
@@ -213,112 +277,113 @@ chi = st.sidebar.number_input(
     step=0.1
 )
 
-run_btn = st.sidebar.button("计算沉积分数")
+st.sidebar.markdown("---")
+run_single_btn = st.sidebar.button("计算单粒径沉积分数", use_container_width=True)
+run_curve_btn = st.sidebar.button("绘制分区沉积分数曲线", use_container_width=True)
+run_all_btn = st.sidebar.button("全部计算", use_container_width=True)
 
-# ---------- 主区 ----------
-if run_btn:
+# =========================
+# 页面说明
+# =========================
+with st.expander("当前页面功能说明", expanded=False):
+    st.write("本页用于计算单粒径颗粒在呼吸道各区域的沉积分数，并绘制不同粒径下的分区沉积分数曲线。")
+    st.write("后续若增加剂量计算、多分散沉积计算等功能，建议拆分为独立页面。")
+
+# =========================
+# 计算逻辑
+# =========================
+do_single = run_single_btn or run_all_btn
+do_curve = run_curve_btn or run_all_btn
+
+if do_single or do_curve:
     try:
-        single = calc_single_dep(
-            pop_key=pop_key,
-            behavior_key=behavior_key,
-            nose_breath=nose_breath,
-            wind_speed=wind_speed,
-            dae_um=dae_um,
-            rho_g=rho_g,
-            chi=chi
-        )
+        st.markdown("### 当前参数")
+        col_info1, col_info2, col_info3 = st.columns(3)
+        col_info1.write(f"**人群**：{POP_LABELS_ZH.get(pop_key, pop_key)}")
+        col_info2.write(f"**活动状态**：{STATE_LABELS_ZH.get(behavior_key, behavior_key)}")
+        col_info3.write(f"**呼吸方式**：{'鼻呼吸' if nose_breath else '口呼吸'}")
 
-        curve = calc_dep_curve(
-            pop_key=pop_key,
-            behavior_key=behavior_key,
-            nose_breath=nose_breath,
-            wind_speed=wind_speed,
-            rho_g=rho_g,
-            chi=chi
-        )
+        col_info4, col_info5, col_info6, col_info7 = st.columns(4)
+        col_info4.write(f"**风速**：{wind_speed:.2f} m/s")
+        col_info5.write(f"**dae**：{dae_um:.3f} μm")
+        col_info6.write(f"**密度**：{rho_g:.2f} g/cm³")
+        col_info7.write(f"**形状因子**：{chi:.2f}")
 
-        st.write(f"所选人群：{POP_LABELS_ZH.get(pop_key, pop_key)}")
-        st.write(f"活动状态：{STATE_LABELS_ZH.get(behavior_key, behavior_key)}")
-        st.write(f"空气动力学直径 dae = {dae_um:.3f} μm")
-        st.write(f"换算后的热力学直径 dth = {float(single['dth'][0]):.3f} μm")
-
-        # =====================
-        # 1. 单粒径结果表
-        # =====================
-        result_df = pd.DataFrame({
-            "区域": [REGION_LABELS_ZH[r] for r in REGIONS] + ["总沉积分数"],
-            "沉积分数": [single["by_region"][r] for r in REGIONS] + [single["total"]]
-        })
-
-        st.subheader("单粒径沉积分数结果")
-        st.dataframe(result_df, use_container_width=True)
-
-        # =====================
-        # 2. 柱状图
-        # =====================
-        st.subheader("区域沉积分数柱状图")
-        chart_df = pd.DataFrame({
-            "区域": [REGION_LABELS_ZH[r] for r in REGIONS],
-            "沉积分数": [single["by_region"][r] for r in REGIONS]
-        }).set_index("区域")
-        st.bar_chart(chart_df)
-
-        # =====================
-        # 3. 曲线图
-        # =====================
-        st.subheader("分区沉积分数曲线")
-
-        fig, ax = plt.subplots(figsize=(10, 5.5))
-
-        color_map = {
-            "ET1": "C0",
-            "ET2": "C1",
-            "BB": "C2",
-            "bb": "C3",
-            "AI": "C4",
-            "Total": "#444444",
-        }
-
-        dae_curve = curve["dae"]
-
-        for region in REGIONS:
-            ax.plot(
-                dae_curve,
-                curve["curve"][region],
-                label=REGION_LABELS_ZH[region],
-                color=color_map[region],
-                linewidth=2.0
+        # ---------- 单粒径 ----------
+        if do_single:
+            single = calc_single_dep(
+                pop_key=pop_key,
+                behavior_key=behavior_key,
+                nose_breath=nose_breath,
+                wind_speed=wind_speed,
+                dae_um=dae_um,
+                rho_g=rho_g,
+                chi=chi
             )
 
-        ax.plot(
-            dae_curve,
-            curve["total"],
-            label="总和",
-            color=color_map["Total"],
-            linewidth=2.8
-        )
+            st.markdown("---")
+            st.subheader("单粒径沉积分数结果")
 
-        ax.set_xscale("log")
-        ax.set_xlim(dae_curve.min(), dae_curve.max())
-        ax.set_ylim(0, 1.02)
-        ax.set_xlabel("颗粒空气动力学直径 (μm)")
-        ax.set_ylabel("沉积分数")
-        ax.grid(which="major", linestyle="--", alpha=0.35)
-        ax.grid(which="minor", axis="x", linestyle=":", alpha=0.25)
-        ax.legend(frameon=False, ncol=3)
+            st.write(f"换算后的热力学直径 dth = {float(single['dth'][0]):.3f} μm")
 
-        title_breath = "鼻呼吸" if nose_breath else "口呼吸"
-        ax.set_title(
-            f"分区沉积分数曲线：{POP_LABELS_ZH.get(pop_key, pop_key)} / "
-            f"{STATE_LABELS_ZH.get(behavior_key, behavior_key)} / "
-            f"{title_breath} / U={wind_speed:g}"
-        )
+            result_df = make_single_result_df(single)
+            show_df = result_df.copy()
+            show_df["沉积分数"] = show_df["沉积分数"].map(lambda x: f"{x:.4f}")
 
-        fig.tight_layout()
-        st.pyplot(fig, use_container_width=True)
+            st.dataframe(show_df, use_container_width=True, hide_index=True)
+
+            st.subheader("区域沉积分数柱状图")
+            chart_df = pd.DataFrame({
+                "区域": [REGION_LABELS_ZH[r] for r in REGIONS],
+                "沉积分数": [single["by_region"][r] for r in REGIONS]
+            }).set_index("区域")
+            st.bar_chart(chart_df)
+
+        # ---------- 曲线 ----------
+        if do_curve:
+            curve = calc_dep_curve(
+                pop_key=pop_key,
+                behavior_key=behavior_key,
+                nose_breath=nose_breath,
+                wind_speed=wind_speed,
+                rho_g=rho_g,
+                chi=chi
+            )
+
+            st.markdown("---")
+            st.subheader("分区沉积分数曲线")
+            fig = plot_dep_curve(
+                curve_result=curve,
+                pop_key=pop_key,
+                behavior_key=behavior_key,
+                nose_breath=nose_breath,
+                wind_speed=wind_speed
+            )
+            st.pyplot(fig, use_container_width=True)
+
+            curve_df = pd.DataFrame({
+                "dae_um": curve["dae"],
+                "ET1": curve["curve"]["ET1"],
+                "ET2": curve["curve"]["ET2"],
+                "BB": curve["curve"]["BB"],
+                "bb": curve["curve"]["bb"],
+                "AI": curve["curve"]["AI"],
+                "Total": curve["total"]
+            })
+
+            csv_data = curve_df.to_csv(index=False).encode("utf-8-sig")
+            st.download_button(
+                label="下载曲线数据 CSV",
+                data=csv_data,
+                file_name="deposition_curve.csv",
+                mime="text/csv"
+            )
 
     except Exception as e:
         st.error(f"计算失败：{e}")
+
+else:
+    st.info("请在左侧设置参数后，点击“计算单粒径沉积分数”“绘制分区沉积分数曲线”或“全部计算”。")
 
 else:
     st.info("请在左侧设置参数后，点击“计算沉积分数”。")
