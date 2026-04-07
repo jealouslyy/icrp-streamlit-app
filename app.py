@@ -6,6 +6,16 @@ import matplotlib.pyplot as plt
 from core.params import POP
 from core.model import kernels_one_state, dth_from_dae
 
+plt.rcParams["font.sans-serif"] = [
+    "Noto Sans CJK SC",
+    "Noto Sans CJK JP",
+    "SimHei",
+    "Microsoft YaHei",
+    "Arial Unicode MS",
+    "DejaVu Sans",
+]
+plt.rcParams["axes.unicode_minus"] = False
+
 st.set_page_config(
     page_title="呼吸道颗粒物沉积计算软件",
     layout="wide"
