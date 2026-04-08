@@ -804,12 +804,11 @@ elif input_mode == "粒径点-浓度":
         default_df,
         num_rows="dynamic",
         use_container_width=True,
-        column_config = {
+        column_config={
             "dae_um": st.column_config.NumberColumn("粒径（μm）"),
             "conc": st.column_config.NumberColumn("浓度"),
         }
     )
-
     run_points_btn = st.button("计算粒径点列表沉积剂量", use_container_width=True)
 
     if run_points_btn:
