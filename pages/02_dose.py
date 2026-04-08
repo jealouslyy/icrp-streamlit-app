@@ -792,7 +792,7 @@ if input_mode == "单粒径":
 # =========================
 # 模式 2：粒径点列表
 # =========================
-elif input_mode == "粒径点列表":
+elif input_mode == "粒径点-浓度":
     st.subheader("粒径点-浓度输入表")
 
     default_df = pd.DataFrame({
@@ -879,7 +879,7 @@ elif input_mode == "粒径点列表":
                 mime="text/csv"
             )
 
-elif input_mode == "粒径段列表":
+elif input_mode == "粒径段-浓度":
     st.subheader("粒径段-浓度输入表")
 
     default_df = pd.DataFrame({
