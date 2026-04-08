@@ -211,8 +211,7 @@ def make_single_result_df(single_result):
 
 
 def plot_dep_curve(curve_result, pop_key, behavior_key, nose_breath, wind_speed):
-    fig, ax = plt.subplots(figsize=(10, 5.8))
-
+    fig, ax = plt.subplots(figsize=(10.5, 6.2))
     dae_curve = curve_result["dae"]
 
     for region in REGIONS:
@@ -220,32 +219,46 @@ def plot_dep_curve(curve_result, pop_key, behavior_key, nose_breath, wind_speed)
             dae_curve,
             curve_result["curve"][region],
             label=REGION_LABELS_ZH[region],
-            linewidth=2.0
+            linewidth=2.4,
+            color=REGION_COLORS[region],
+            alpha=0.95
         )
 
     ax.plot(
         dae_curve,
         curve_result["total"],
         label="总沉积分数",
-        linewidth=2.8
+        linewidth=3.0,
+        color=TOTAL_COLOR,
+        linestyle="-"
     )
 
     ax.set_xscale("log")
     ax.set_xlim(dae_curve.min(), dae_curve.max())
     ax.set_ylim(0, 1.02)
-    ax.set_xlabel("颗粒空气动力学直径（μm）", fontsize=12)
-    ax.set_ylabel("沉积分数", fontsize=12)
-    ax.tick_params(axis="both", labelsize=11)
-    ax.grid(which="major", linestyle="--", alpha=0.35)
-    ax.grid(which="minor", axis="x", linestyle=":", alpha=0.25)
-    ax.legend(frameon=False, ncol=3, fontsize=10)
+    ax.set_xlabel("颗粒空气动力学直径（μm）", fontsize=13, fontweight="bold")
+    ax.set_ylabel("沉积分数", fontsize=13, fontweight="bold")
+
+    apply_ax_style(ax)
+    ax.grid(which="major", axis="y", linestyle="--", linewidth=0.8, alpha=0.30)
+    ax.grid(which="minor", axis="x", linestyle=":", linewidth=0.7, alpha=0.20)
 
     title_breath = "鼻呼吸" if nose_breath else "口呼吸"
     ax.set_title(
         f"分区沉积分数曲线：{POP_LABELS_ZH.get(pop_key, pop_key)} / "
         f"{STATE_LABELS_ZH.get(behavior_key, behavior_key)} / "
         f"{title_breath} / U={wind_speed:g} m/s",
-        fontsize=13
+        fontsize=14,
+        fontweight="bold",
+        pad=12
+    )
+
+    ax.legend(
+        frameon=False,
+        ncol=3,
+        fontsize=10.5,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.02)
     )
 
     fig.tight_layout()
