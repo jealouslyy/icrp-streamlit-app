@@ -809,6 +809,7 @@ elif input_mode == "粒径点-浓度":
             "conc": st.column_config.NumberColumn("浓度"),
         }
     )
+    
     run_points_btn = st.button("计算粒径点列表沉积剂量", use_container_width=True)
 
     if run_points_btn:
@@ -901,6 +902,7 @@ elif input_mode == "粒径段-浓度":
         "dp_min_um": st.column_config.NumberColumn("粒径下限（μm）"),
         "dp_max_um": st.column_config.NumberColumn("粒径上限（μm）"),
         "conc": st.column_config.NumberColumn("浓度"),
+        }
     )
 
     run_bins_btn = st.button("计算粒径段列表沉积剂量", use_container_width=True)
