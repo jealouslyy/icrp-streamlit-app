@@ -878,7 +878,9 @@ elif input_mode == "粒径点-浓度":
                 file_name="dose_points_weighted_summary.csv",
                 mime="text/csv"
             )
-
+        except Exception as e:
+            st.error(f"计算失败: {e}")
+            
 elif input_mode == "粒径段-浓度":
     st.subheader("粒径段-浓度输入表")
 
