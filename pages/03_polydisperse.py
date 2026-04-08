@@ -116,29 +116,43 @@ def build_polydisperse_distribution_multi(modes_df, total_conc_ug_m3, dp_min, dp
     mids = np.sqrt(edges[:-1] * edges[1:])
     widths_log = np.diff(np.log10(edges))
 
-    pdf_total = np.zeros_like(mids, dtype=float)
+    peak_weights_list = []
 
     for _, row in modes_df.iterrows():
         mmad = float(row["mmad"])
         gsd = float(row["gsd"])
         frac = float(row["fraction"])
-        pdf_total += frac * lognormal_mass_pdf(mids, mmad, gsd)
 
-    weights = pdf_total * widths_log
-    weights_sum = np.sum(weights)
-    if weights_sum <= 0:
+        pdf_i = lognormal_mass_pdf(mids, mmad, gsd)
+        w_i = frac * pdf_i * widths_log
+        peak_weights_list.append(w_i)
+
+    if len(peak_weights_list) == 0:
+        raise ValueError("请至少输入一个有效峰。")
+
+    peak_weights_arr = np.vstack(peak_weights_list)   # (n_peak, n_bins)
+    total_weights = np.sum(peak_weights_arr, axis=0)
+    total_sum = np.sum(total_weights)
+
+    if total_sum <= 0:
         raise ValueError("多峰分布权重计算失败，请检查 mmad、gsd 和 fraction 输入。")
 
-    weights = weights / weights_sum
-    conc_each = total_conc_ug_m3 * weights
+    peak_weights_arr = peak_weights_arr / total_sum
+    total_weights = np.sum(peak_weights_arr, axis=0)
 
-    return pd.DataFrame({
+    data = {
         "dp_min_um": edges[:-1],
         "dp_max_um": edges[1:],
         "dae_um": mids,
-        "mass_fraction": weights,
-        "conc_ug_m3": conc_each,
-    })
+        "mass_fraction": total_weights,
+        "conc_ug_m3": total_conc_ug_m3 * total_weights,
+    }
+
+    for j in range(peak_weights_arr.shape[0]):
+        data[f"peak{j+1}_mass_fraction"] = peak_weights_arr[j]
+        data[f"peak{j+1}_conc_ug_m3"] = total_conc_ug_m3 * peak_weights_arr[j]
+
+    return pd.DataFrame(data)
 
 def calc_dep(pop_key, behavior_key, nose_breath, wind_speed, dae_um, rho_g, chi):
     base = POP[pop_key]["base"]
@@ -186,10 +200,27 @@ def calc_polydisperse_weighted(
     )
 
     dae = dist_df["dae_um"].to_numpy()
-    conc = dist_df["conc_ug_m3"].to_numpy()
+    total_conc_arr = dist_df["conc_ug_m3"].to_numpy()
 
-    total_result_df = None
+    total_result_df = dist_df.copy()
     by_state_rows = []
+
+    # 初始化总剂量列
+    total_result_df["dth_um"] = np.nan
+    total_result_df["ET1_df"] = 0.0
+    total_result_df["ET2_df"] = 0.0
+    total_result_df["BB_df"] = 0.0
+    total_result_df["bb_df"] = 0.0
+    total_result_df["AI_df"] = 0.0
+    total_result_df["Total_df"] = 0.0
+
+    for r in REGIONS:
+        total_result_df[f"{r}_dose_ug"] = 0.0
+
+    n_peaks = len(modes_df)
+    for i in range(n_peaks):
+        for r in REGIONS:
+            total_result_df[f"peak{i+1}_{r}_dose_ug"] = 0.0
 
     for behavior_key in BEHAVIOR_ORDER:
         t = float(time_dict.get(behavior_key, 0.0))
@@ -207,38 +238,49 @@ def calc_polydisperse_weighted(
             chi=chi,
         )
 
-        inhaled_each = conc * vent * t
+        inhaled_each_total = total_conc_arr * vent * t
 
-        state_df = dist_df.copy()
-        state_df["dth_um"] = dep["dth"]
-        state_df["ET1_df"] = dep["by_region"]["ET1"]
-        state_df["ET2_df"] = dep["by_region"]["ET2"]
-        state_df["BB_df"] = dep["by_region"]["BB"]
-        state_df["bb_df"] = dep["by_region"]["bb"]
-        state_df["AI_df"] = dep["by_region"]["AI"]
-        state_df["Total_df"] = dep["total"]
+        # 保存最后一个状态下的 dth
+        total_result_df["dth_um"] = dep["dth"]
+
+        # 对各状态的沉积分数做时间加权平均显示
+        total_result_df["ET1_df"] += dep["by_region"]["ET1"] * t
+        total_result_df["ET2_df"] += dep["by_region"]["ET2"] * t
+        total_result_df["BB_df"] += dep["by_region"]["BB"] * t
+        total_result_df["bb_df"] += dep["by_region"]["bb"] * t
+        total_result_df["AI_df"] += dep["by_region"]["AI"] * t
+        total_result_df["Total_df"] += dep["total"] * t
 
         for r in REGIONS:
-            state_df[f"{r}_dose_ug"] = inhaled_each * dep["by_region"][r]
+            total_result_df[f"{r}_dose_ug"] += inhaled_each_total * dep["by_region"][r]
 
-        if total_result_df is None:
-            total_result_df = state_df.copy()
-        else:
+        # 每个峰分别计算各区域剂量
+        for i in range(n_peaks):
+            peak_conc = total_result_df[f"peak{i+1}_conc_ug_m3"].to_numpy()
+            inhaled_each_peak = peak_conc * vent * t
             for r in REGIONS:
-                total_result_df[f"{r}_dose_ug"] += state_df[f"{r}_dose_ug"]
+                total_result_df[f"peak{i+1}_{r}_dose_ug"] += inhaled_each_peak * dep["by_region"][r]
 
-        state_total = sum(np.sum(state_df[f"{r}_dose_ug"]) for r in REGIONS)
+        state_total = sum(np.sum(inhaled_each_total * dep["by_region"][r]) for r in REGIONS)
 
         by_state_rows.append({
             "活动状态": STATE_LABELS_ZH[behavior_key],
             "暴露时长 (h)": t,
             "通气量 (m³/h)": vent,
-            "吸入质量 (μg)": float(np.sum(inhaled_each)),
+            "吸入质量 (μg)": float(np.sum(inhaled_each_total)),
             "总沉积剂量 (μg)": float(state_total),
         })
 
-    if total_result_df is None:
+    total_time = sum(float(time_dict.get(k, 0.0)) for k in BEHAVIOR_ORDER)
+    if total_time <= 0:
         raise ValueError("四种活动状态的暴露时长均为 0，无法计算。")
+
+    total_result_df["ET1_df"] /= total_time
+    total_result_df["ET2_df"] /= total_time
+    total_result_df["BB_df"] /= total_time
+    total_result_df["bb_df"] /= total_time
+    total_result_df["AI_df"] /= total_time
+    total_result_df["Total_df"] /= total_time
 
     summary = {
         "ET1_total_ug": float(np.sum(total_result_df["ET1_dose_ug"])),
@@ -268,6 +310,93 @@ def make_summary_df(summary):
             summary["Total_deposited_ug"],
         ]
     })
+
+def make_peak_contribution_df(result_df, modes_df):
+    rows = []
+    n_peaks = len(modes_df)
+
+    for i in range(n_peaks):
+        et1 = float(np.sum(result_df[f"peak{i+1}_ET1_dose_ug"]))
+        et2 = float(np.sum(result_df[f"peak{i+1}_ET2_dose_ug"]))
+        bb  = float(np.sum(result_df[f"peak{i+1}_BB_dose_ug"]))
+        bb2 = float(np.sum(result_df[f"peak{i+1}_bb_dose_ug"]))
+        ai  = float(np.sum(result_df[f"peak{i+1}_AI_dose_ug"]))
+
+        rows.append({
+            "峰": f"峰{i+1}",
+            "鼻腔前部": et1,
+            "鼻腔后部": et2,
+            "支气管": bb,
+            "细支气管": bb2,
+            "肺泡区": ai,
+            "总沉积剂量(μg)": et1 + et2 + bb + bb2 + ai
+        })
+
+    return pd.DataFrame(rows)
+
+# =========================
+# 绘图函数
+# =========================
+def plot_peak_distribution(result_df, modes_df):
+    fig, ax = plt.subplots(figsize=(8.8, 5.2))
+    dae = result_df["dae_um"].to_numpy()
+
+    for i in range(len(modes_df)):
+        col = f"peak{i+1}_conc_ug_m3"
+        if col in result_df.columns:
+            ax.plot(
+                dae,
+                result_df[col],
+                marker="o",
+                linewidth=1.8,
+                label=f"峰{i+1}"
+            )
+
+    ax.plot(
+        dae,
+        result_df["conc_ug_m3"],
+        color="black",
+        linewidth=2.8,
+        label="总分布"
+    )
+
+    ax.set_xscale("log")
+    ax.set_title("多峰分布中各峰对总质量浓度的贡献", fontsize=14, fontweight="bold")
+    ax.set_xlabel("空气动力学直径 dae（μm）", fontsize=12, fontweight="bold")
+    ax.set_ylabel("质量浓度（μg/m³）", fontsize=12, fontweight="bold")
+    ax.grid(True, which="both", linestyle="--", alpha=0.25)
+    ax.legend(fontsize=10)
+    fig.tight_layout()
+    return fig
+
+def plot_peak_contribution_bar(peak_df):
+    fig, ax = plt.subplots(figsize=(8.5, 5.2))
+
+    bars = ax.bar(peak_df["峰"], peak_df["总沉积剂量(μg)"], width=0.62, alpha=0.9)
+
+    ax.set_title("各峰对总沉积剂量的贡献", fontsize=14, fontweight="bold")
+    ax.set_xlabel("分布峰", fontsize=12, fontweight="bold")
+    ax.set_ylabel("总沉积剂量（μg）", fontsize=12, fontweight="bold")
+    ax.grid(axis="y", linestyle="--", alpha=0.25)
+
+    for spine in ["top", "right"]:
+        ax.spines[spine].set_visible(False)
+
+    ymax = peak_df["总沉积剂量(μg)"].max() if len(peak_df) > 0 else 1
+    ax.set_ylim(0, ymax * 1.18 if ymax > 0 else 1)
+
+    for bar, val in zip(bars, peak_df["总沉积剂量(μg)"]):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + (ymax * 0.02 if ymax > 0 else 0.02),
+            f"{val:.3f}",
+            ha="center",
+            va="bottom",
+            fontsize=10
+        )
+
+    fig.tight_layout()
+    return fig
 
 def plot_region_bar(summary):
     labels = ["鼻腔前部", "鼻腔后部", "支气管", "细支气管", "肺泡区"]
@@ -306,17 +435,6 @@ def plot_region_bar(summary):
     fig.tight_layout()
     return fig
 
-def plot_distribution(result_df):
-    fig, ax = plt.subplots(figsize=(8.5, 5.0))
-    ax.plot(result_df["dae_um"], result_df["conc_ug_m3"], marker="o")
-    ax.set_xscale("log")
-    ax.set_title("多分散气溶胶质量浓度分布", fontsize=14, fontweight="bold")
-    ax.set_xlabel("空气动力学直径 dae（μm）", fontsize=12, fontweight="bold")
-    ax.set_ylabel("分配浓度（μg/m³）", fontsize=12, fontweight="bold")
-    ax.grid(True, which="both", linestyle="--", alpha=0.25)
-    fig.tight_layout()
-    return fig
-
 # =========================
 # 页面标题
 # =========================
@@ -325,7 +443,7 @@ st.title("第三页：多分散气溶胶沉积计算")
 with st.expander("当前页面功能说明", expanded=False):
     st.write(
         "本页基于一个或多个对数正态峰的叠加分布，输入各峰的中值粒径、几何标准差及质量分数，"
-        "并结合总质量浓度计算多分散气溶胶在呼吸道各区域的沉积剂量。"
+        "并结合总质量浓度与四种活动状态暴露时长，计算多分散气溶胶在呼吸道各区域的沉积剂量。"
     )
 
 # =========================
@@ -451,6 +569,8 @@ if run_btn:
             time_dict=time_dict,
         )
 
+        peak_df = make_peak_contribution_df(result_df, modes_df)
+
         st.markdown("---")
         st.subheader("计算摘要")
 
@@ -472,11 +592,20 @@ if run_btn:
         show_df["沉积剂量 (μg)"] = show_df["沉积剂量 (μg)"].map(lambda x: f"{x:.6f}")
         st.dataframe(show_df, use_container_width=True, hide_index=True)
 
+        st.subheader("各峰对区域沉积的贡献")
+        show_peak_df = peak_df.copy()
+        for col in show_peak_df.columns[1:]:
+            show_peak_df[col] = show_peak_df[col].map(lambda x: f"{x:.6f}")
+        st.dataframe(show_peak_df, use_container_width=True, hide_index=True)
+
         c1, c2 = st.columns(2)
         with c1:
-            st.pyplot(plot_distribution(result_df), use_container_width=True)
+            st.pyplot(plot_peak_distribution(result_df, modes_df), use_container_width=True)
         with c2:
-            st.pyplot(plot_region_bar(summary), use_container_width=True)
+            st.pyplot(plot_peak_contribution_bar(peak_df), use_container_width=True)
+
+        st.subheader("区域总沉积剂量分布")
+        st.pyplot(plot_region_bar(summary), use_container_width=True)
 
         csv1 = result_df.to_csv(index=False).encode("utf-8-sig")
         st.download_button(
@@ -491,6 +620,14 @@ if run_btn:
             "下载区域汇总结果 CSV",
             data=csv2,
             file_name="polydisperse_summary.csv",
+            mime="text/csv"
+        )
+
+        csv3 = peak_df.to_csv(index=False).encode("utf-8-sig")
+        st.download_button(
+            "下载各峰贡献结果 CSV",
+            data=csv3,
+            file_name="polydisperse_peak_contribution.csv",
             mime="text/csv"
         )
 
