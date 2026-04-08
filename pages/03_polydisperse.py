@@ -114,16 +114,25 @@ def lognormal_mass_pdf(dp, mmad, gsd):
     mu = np.log(mmad)
     return (1 / (dp * sigma * np.sqrt(2 * np.pi))) * np.exp(-((np.log(dp) - mu) ** 2) / (2 * sigma ** 2))
 
-def build_polydisperse_distribution(mmad, gsd, total_conc_ug_m3, dp_min, dp_max, n_bins):
+def build_polydisperse_distribution_multi(modes_df, total_conc_ug_m3, dp_min, dp_max, n_bins):
     edges = np.logspace(np.log10(dp_min), np.log10(dp_max), n_bins + 1)
     mids = np.sqrt(edges[:-1] * edges[1:])
     widths_log = np.diff(np.log10(edges))
 
-    pdf = lognormal_mass_pdf(mids, mmad, gsd)
-    weights = pdf * widths_log
+    pdf_total = np.zeros_like(mids, dtype=float)
+
+    for _, row in modes_df.iterrows():
+        mmad = float(row["mmad"])
+        gsd = float(row["gsd"])
+        frac = float(row["fraction"])
+
+        pdf_total += frac * lognormal_mass_pdf(mids, mmad, gsd)
+
+    weights = pdf_total * widths_log
     weights = weights / np.sum(weights)
 
     conc_each = total_conc_ug_m3 * weights
+
     return pd.DataFrame({
         "dp_min_um": edges[:-1],
         "dp_max_um": edges[1:],
@@ -159,8 +168,7 @@ def calc_polydisperse_weighted(
     wind_speed,
     rho_g,
     chi,
-    mmad,
-    gsd,
+    modes_df,
     total_conc,
     concentration_unit,
     dp_min,
@@ -170,9 +178,8 @@ def calc_polydisperse_weighted(
 ):
     total_conc_ug_m3 = float(convert_concentration_to_ug_m3([total_conc], concentration_unit)[0])
 
-    dist_df = build_polydisperse_distribution(
-        mmad=mmad,
-        gsd=gsd,
+    dist_df = build_polydisperse_distribution_multi(
+        modes_df=modes_df,
         total_conc_ug_m3=total_conc_ug_m3,
         dp_min=dp_min,
         dp_max=dp_max,
@@ -207,9 +214,9 @@ def calc_polydisperse_weighted(
         state_df["dth_um"] = dep["dth"]
         state_df["ET1_df"] = dep["by_region"]["ET1"]
         state_df["ET2_df"] = dep["by_region"]["ET2"]
-        state_df["BB_df"]  = dep["by_region"]["BB"]
-        state_df["bb_df"]  = dep["by_region"]["bb"]
-        state_df["AI_df"]  = dep["by_region"]["AI"]
+        state_df["BB_df"] = dep["by_region"]["BB"]
+        state_df["bb_df"] = dep["by_region"]["bb"]
+        state_df["AI_df"] = dep["by_region"]["AI"]
         state_df["Total_df"] = dep["total"]
 
         for r in REGIONS:
@@ -244,11 +251,8 @@ def calc_polydisperse_weighted(
         "by_state_df": pd.DataFrame(by_state_rows),
     }
     summary["Total_deposited_ug"] = (
-        summary["ET1_total_ug"] +
-        summary["ET2_total_ug"] +
-        summary["BB_total_ug"] +
-        summary["bb_total_ug"] +
-        summary["AI_total_ug"]
+        summary["ET1_total_ug"] + summary["ET2_total_ug"] +
+        summary["BB_total_ug"] + summary["bb_total_ug"] + summary["AI_total_ug"]
     )
 
     return total_result_df, summary
@@ -320,7 +324,7 @@ def plot_distribution(result_df):
 st.title("第三页：多分散气溶胶沉积计算")
 
 with st.expander("当前页面功能说明", expanded=False):
-    st.write("本页基于对数正态分布假设，输入中值粒径、几何标准差和总质量浓度，计算多分散气溶胶在呼吸道各区域的沉积剂量。")
+    st.write("本页基于一个或多个对数正态峰的叠加分布，输入各峰的中值粒径、几何标准差及质量分数，并结合总质量浓度计算多分散气溶胶在呼吸道各区域的沉积剂量。")
 
 # =========================
 # 侧边栏参数
@@ -340,8 +344,19 @@ wind_speed = st.sidebar.number_input("风速 U（m/s）", min_value=0.0, value=1
 rho_g = st.sidebar.number_input("颗粒密度 ρ（g/cm³）", min_value=0.1, value=1.5, step=0.1)
 chi = st.sidebar.number_input("形状因子 χ", min_value=0.1, value=1.0, step=0.1)
 
-mmad = st.sidebar.number_input("空气动力学中值粒径 AMAD（μm）", min_value=0.001, value=0.3, step=0.01, format="%.3f")
-gsd = st.sidebar.number_input("几何标准差 GSD", min_value=1.01, value=2.0, step=0.1)
+st.sidebar.subheader("多峰分布")
+
+default_modes = pd.DataFrame({
+    "mmad": [0.08, 0.8],
+    "gsd": [1.8, 2.2],
+    "fraction": [0.4, 0.6],
+})
+
+modes_df = st.data_editor(
+    default_modes,
+    num_rows="dynamic",
+    use_container_width=True
+)
 total_conc = st.sidebar.number_input("总质量浓度", min_value=0.0, value=50.0, step=1.0)
 
 concentration_unit = st.sidebar.selectbox("浓度单位", ["μg/m³", "ng/m³", "mg/m³"], index=0)
@@ -388,20 +403,19 @@ run_btn = st.button("计算多分散气溶胶沉积剂量", use_container_width=
 if run_btn:
     try:
         result_df, summary = calc_polydisperse_weighted(
-            pop_key=pop_key,
-            nose_breath=nose_breath,
-            wind_speed=wind_speed,
-            rho_g=rho_g,
-            chi=chi,
-            mmad=mmad,
-            gsd=gsd,
-            total_conc=total_conc,
-            concentration_unit=concentration_unit,
-            dp_min=dp_min,
-            dp_max=dp_max,
-            n_bins=n_bins,
-            time_dict=time_dict,
-        )
+        pop_key=pop_key,
+        nose_breath=nose_breath,
+        wind_speed=wind_speed,
+        rho_g=rho_g,
+        chi=chi,
+        modes_df=modes_df,
+        total_conc=total_conc,
+        concentration_unit=concentration_unit,
+        dp_min=dp_min,    
+        dp_max=dp_max,
+        n_bins=n_bins,
+        time_dict=time_dict,
+)
 
         st.markdown("---")
         st.subheader("计算摘要")
