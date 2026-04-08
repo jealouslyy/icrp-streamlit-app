@@ -264,6 +264,112 @@ def plot_dep_curve(curve_result, pop_key, behavior_key, nose_breath, wind_speed)
     fig.tight_layout()
     return fig
 
+def plot_single_region_bar(single_result, dae_um):
+    fig, ax = plt.subplots(figsize=(8.8, 5.4))
+
+    region_order = ["ET1", "ET2", "BB", "bb", "AI"]
+    labels = [REGION_LABELS_ZH[r] for r in region_order]
+    values = [single_result["by_region"][r] for r in region_order]
+    colors = [REGION_COLORS[r] for r in region_order]
+
+    bars = ax.bar(
+        labels,
+        values,
+        width=0.62,
+        color=colors,
+        edgecolor="white",
+        linewidth=1.0,
+        alpha=0.92
+    )
+
+    total_val = float(single_result["total"])
+    ax.axhline(
+        total_val,
+        color=TOTAL_COLOR,
+        linestyle="--",
+        linewidth=1.8,
+        label=f"总沉积分数 = {total_val:.4f}"
+    )
+
+    ax.set_ylim(0, max(max(values) * 1.22, total_val * 1.12, 0.1))
+    ax.set_xlabel("呼吸道区域", fontsize=12.5, fontweight="bold")
+    ax.set_ylabel("沉积分数", fontsize=12.5, fontweight="bold")
+    ax.set_title(f"单粒径区域沉积分数分布（dae = {dae_um:.3f} μm）", fontsize=14.5, fontweight="bold", pad=12)
+
+    apply_ax_style(ax)
+    ax.legend(frameon=False, fontsize=10.5, loc="upper right")
+
+    ymax = ax.get_ylim()[1]
+    for bar, val in zip(bars, values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + ymax * 0.015,
+            f"{val:.4f}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            fontweight="bold",
+            color="#333333"
+        )
+
+    fig.tight_layout()
+    return fig
+
+
+def plot_total_dep_curve(curve_result, dae_um, pop_key, behavior_key, nose_breath, wind_speed):
+    fig, ax = plt.subplots(figsize=(10.0, 5.6))
+
+    dae_curve = curve_result["dae"]
+    total_curve = curve_result["total"]
+
+    ax.plot(
+        dae_curve,
+        total_curve,
+        color=TOTAL_COLOR,
+        linewidth=3.0,
+        label="总沉积分数"
+    )
+
+    current_total = float(np.interp(dae_um, dae_curve, total_curve))
+    ax.axvline(
+        dae_um,
+        color="#7A7A7A",
+        linestyle="--",
+        linewidth=1.6,
+        label=f"当前粒径 = {dae_um:.3f} μm"
+    )
+    ax.scatter(
+        [dae_um],
+        [current_total],
+        color="#C00000",
+        s=46,
+        zorder=5,
+        label=f"当前总沉积 = {current_total:.4f}"
+    )
+
+    ax.set_xscale("log")
+    ax.set_xlim(dae_curve.min(), dae_curve.max())
+    ax.set_ylim(0, 1.02)
+    ax.set_xlabel("颗粒空气动力学直径（μm）", fontsize=13, fontweight="bold")
+    ax.set_ylabel("总沉积分数", fontsize=13, fontweight="bold")
+
+    apply_ax_style(ax)
+    ax.grid(which="major", axis="y", linestyle="--", linewidth=0.8, alpha=0.30)
+    ax.grid(which="minor", axis="x", linestyle=":", linewidth=0.7, alpha=0.20)
+
+    title_breath = "鼻呼吸" if nose_breath else "口呼吸"
+    ax.set_title(
+        f"总沉积效率曲线：{POP_LABELS_ZH.get(pop_key, pop_key)} / "
+        f"{STATE_LABELS_ZH.get(behavior_key, behavior_key)} / "
+        f"{title_breath} / U={wind_speed:g} m/s",
+        fontsize=14,
+        fontweight="bold",
+        pad=12
+    )
+
+    ax.legend(frameon=False, fontsize=10.5, loc="upper left")
+    fig.tight_layout()
+    return fig
 
 # =========================
 # 页面标题
@@ -370,7 +476,11 @@ if do_single or do_curve:
             st.subheader("单粒径沉积分数结果")
 
             st.write(f"换算后的热力学直径 dth = {float(single['dth'][0]):.3f} μm")
-
+            m1, m2, m3 = st.columns(3)
+            m1.metric("热力学直径 dth（μm）", f"{float(single['dth'][0]):.3f}")
+            m2.metric("总沉积分数", f"{single['total']:.4f}")
+            m3.metric("最大区域沉积分数", f"{max(single['by_region'].values()):.4f}")
+            
             result_df = make_single_result_df(single)
             show_df = result_df.copy()
             show_df["沉积分数"] = show_df["沉积分数"].map(lambda x: f"{x:.4f}")
@@ -378,11 +488,8 @@ if do_single or do_curve:
             st.dataframe(show_df, use_container_width=True, hide_index=True)
 
             st.subheader("区域沉积分数柱状图")
-            chart_df = pd.DataFrame({
-                "区域": [REGION_LABELS_ZH[r] for r in REGIONS],
-                "沉积分数": [single["by_region"][r] for r in REGIONS]
-            }).set_index("区域")
-            st.bar_chart(chart_df)
+            fig_bar = plot_single_region_bar(single, dae_um)
+            st.pyplot(fig_bar, use_container_width=True)
 
         # ---------- 曲线 ----------
         if do_curve:
@@ -406,6 +513,17 @@ if do_single or do_curve:
             )
             st.pyplot(fig, use_container_width=True)
 
+            st.subheader("总沉积效率曲线")
+            fig_total = plot_total_dep_curve(
+                curve_result=curve,
+                dae_um=dae_um,
+                pop_key=pop_key,
+                behavior_key=behavior_key,
+                nose_breath=nose_breath,
+                wind_speed=wind_speed
+            )
+            st.pyplot(fig_total, use_container_width=True)
+            
             curve_df = pd.DataFrame({
                 "dae_um": curve["dae"],
                 "ET1": curve["curve"]["ET1"],
@@ -416,6 +534,13 @@ if do_single or do_curve:
                 "Total": curve["total"]
             })
 
+            st.subheader("曲线数据预览")
+            show_curve_df = curve_df.copy()
+            for col in ["ET1", "ET2", "BB", "bb", "AI", "Total"]:
+                show_curve_df[col] = show_curve_df[col].map(lambda x: f"{x:.4f}")
+            show_curve_df["dae_um"] = show_curve_df["dae_um"].map(lambda x: f"{x:.4f}")
+            st.dataframe(show_curve_df.head(20), use_container_width=True, hide_index=True)
+            
             csv_data = curve_df.to_csv(index=False).encode("utf-8-sig")
             st.download_button(
                 label="下载曲线数据 CSV",
