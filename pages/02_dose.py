@@ -803,7 +803,11 @@ elif input_mode == "粒径点-浓度":
     edited_df = st.data_editor(
         default_df,
         num_rows="dynamic",
-        use_container_width=True
+        use_container_width=True,
+        column_config = {
+            "dae_um": st.column_config.NumberColumn("粒径（μm）"),
+            "conc": st.column_config.NumberColumn("浓度"),
+        }
     )
 
     run_points_btn = st.button("计算粒径点列表沉积剂量", use_container_width=True)
@@ -893,7 +897,11 @@ elif input_mode == "粒径段-浓度":
     edited_df = st.data_editor(
         default_df,
         num_rows="dynamic",
-        use_container_width=True
+        use_container_width=True,
+        column_config={
+        "dp_min_um": st.column_config.NumberColumn("粒径下限（μm）"),
+        "dp_max_um": st.column_config.NumberColumn("粒径上限（μm）"),
+        "conc": st.column_config.NumberColumn("浓度"),
     )
 
     run_bins_btn = st.button("计算粒径段列表沉积剂量", use_container_width=True)
