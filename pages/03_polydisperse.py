@@ -444,6 +444,45 @@ if run_btn:
             time_dict=time_dict,
         )
 
-        ...
-    except Exception as e:
-        st.error(f"计算失败：{e}")
+        st.markdown("---")
+        st.subheader("计算摘要")
+
+        s1, s2, s3, s4 = st.columns(4)
+        s1.metric("吸入总质量 (μg)", f"{summary['total_inhaled_ug']:.4f}")
+        s2.metric("总沉积剂量 (μg)", f"{summary['Total_deposited_ug']:.4f}")
+        s3.metric("粒径段数", f"{len(result_df)}")
+        s4.metric("总暴露时长 (h)", f"{total_time_h:.2f}")
+
+        st.subheader("各活动状态贡献")
+        st.dataframe(summary["by_state_df"], use_container_width=True, hide_index=True)
+
+        st.subheader("粒径分布与分段结果")
+        st.dataframe(result_df, use_container_width=True, hide_index=True)
+
+        st.subheader("各区域汇总沉积剂量")
+        summary_df = make_summary_df(summary)
+        show_df = summary_df.copy()
+        show_df["沉积剂量 (μg)"] = show_df["沉积剂量 (μg)"].map(lambda x: f"{x:.6f}")
+        st.dataframe(show_df, use_container_width=True, hide_index=True)
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.pyplot(plot_distribution(result_df), use_container_width=True)
+        with c2:
+            st.pyplot(plot_region_bar(summary), use_container_width=True)
+
+        csv1 = result_df.to_csv(index=False).encode("utf-8-sig")
+        st.download_button(
+            "下载多分散分段结果 CSV",
+            data=csv1,
+            file_name="polydisperse_result.csv",
+            mime="text/csv"
+        )
+
+        csv2 = summary_df.to_csv(index=False).encode("utf-8-sig")
+        st.download_button(
+            "下载区域汇总结果 CSV",
+            data=csv2,
+            file_name="polydisperse_summary.csv",
+            mime="text/csv"
+        )
