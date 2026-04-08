@@ -490,7 +490,12 @@ modes_df = st.data_editor(
     default_modes,
     num_rows="dynamic",
     use_container_width=True,
-    hide_index=True
+    hide_index=True,
+    column_config={
+        "mmad": st.column_config.NumberColumn("质量中值空气动力学直径 MMAD（μm）"),
+        "gsd": st.column_config.NumberColumn("几何标准差 GSD"),
+        "fraction": st.column_config.NumberColumn("质量分数"),
+    }
 )
 
 time_dict = {
@@ -584,7 +589,26 @@ if run_btn:
         st.dataframe(summary["by_state_df"], use_container_width=True, hide_index=True)
 
         st.subheader("粒径分布与分段结果")
-        st.dataframe(result_df, use_container_width=True, hide_index=True)
+        show_result_df = result_df.rename(columns={
+            "dp_min_um": "粒径下限（μm）",
+            "dp_max_um": "粒径上限（μm）",
+            "dae_um": "代表粒径（μm）",
+            "dth_um": "热力学直径（μm）",
+            "mass_fraction": "总质量分数",
+            "conc_ug_m3": "质量浓度（μg/m³）",
+            "ET1_df": "ET1沉积分数",
+            "ET2_df": "ET2沉积分数",
+            "BB_df": "BB沉积分数",
+            "bb_df": "bb沉积分数",
+            "AI_df": "AI沉积分数",
+            "Total_df": "总沉积分数",
+            "ET1_dose_ug": "ET1沉积剂量（μg）",
+            "ET2_dose_ug": "ET2沉积剂量（μg）",
+            "BB_dose_ug": "BB沉积剂量（μg）",
+            "bb_dose_ug": "bb沉积剂量（μg）",
+            "AI_dose_ug": "AI沉积剂量（μg）",
+        })
+        st.dataframe(show_result_df, use_container_width=True, hide_index=True)
 
         st.subheader("各区域汇总沉积剂量")
         summary_df = make_summary_df(summary)
