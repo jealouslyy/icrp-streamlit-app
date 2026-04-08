@@ -371,7 +371,7 @@ def make_peak_contribution_df(result_df, modes_df):
 # 绘图函数
 # =========================
 def plot_peak_distribution(result_df, modes_df):
-    fig, ax = plt.subplots(figsize=(8.8, 5.2))
+    fig, ax = plt.subplots(figsize=(9.2, 5.6))
     dae = result_df["dae_um"].to_numpy()
 
     for i in range(len(modes_df)):
@@ -381,58 +381,76 @@ def plot_peak_distribution(result_df, modes_df):
                 dae,
                 result_df[col],
                 marker="o",
-                linewidth=1.8,
+                markersize=3.5,
+                linewidth=2.0,
+                color=PEAK_COLORS[i % len(PEAK_COLORS)],
+                alpha=0.90,
                 label=f"峰{i+1}"
             )
 
     ax.plot(
         dae,
         result_df["conc_ug_m3"],
-        color="black",
-        linewidth=2.8,
+        color=TOTAL_COLOR,
+        linewidth=3.0,
+        alpha=0.95,
         label="总分布"
     )
 
     ax.set_xscale("log")
-    ax.set_title("多峰分布中各峰对总质量浓度的贡献", fontsize=14, fontweight="bold")
-    ax.set_xlabel("空气动力学直径 dae（μm）", fontsize=12, fontweight="bold")
-    ax.set_ylabel("质量浓度（μg/m³）", fontsize=12, fontweight="bold")
-    ax.grid(True, which="both", linestyle="--", alpha=0.25)
-    ax.legend(fontsize=10)
+    ax.set_xlabel("空气动力学直径 dae（μm）", fontsize=12.5, fontweight="bold")
+    ax.set_ylabel("质量浓度（μg/m³）", fontsize=12.5, fontweight="bold")
+    ax.set_title("多峰分布中各峰对总质量浓度的贡献", fontsize=14.5, fontweight="bold", pad=12)
+
+    apply_ax_style(ax)
+    ax.grid(which="major", axis="y", linestyle="--", linewidth=0.8, alpha=0.30)
+    ax.grid(which="minor", axis="x", linestyle=":", linewidth=0.7, alpha=0.20)
+
+    ax.legend(frameon=False, fontsize=10.5, ncol=2)
     fig.tight_layout()
     return fig
 
 def plot_peak_contribution_bar(peak_df):
-    fig, ax = plt.subplots(figsize=(8.5, 5.2))
+    fig, ax = plt.subplots(figsize=(8.6, 5.4))
 
-    bars = ax.bar(peak_df["峰"], peak_df["总沉积剂量(μg)"], width=0.62, alpha=0.9)
+    peak_colors = [PEAK_COLORS[i % len(PEAK_COLORS)] for i in range(len(peak_df))]
+    bars = ax.bar(
+        peak_df["峰"],
+        peak_df["总沉积剂量(μg)"],
+        width=0.62,
+        color=peak_colors,
+        edgecolor="white",
+        linewidth=1.0,
+        alpha=0.92
+    )
 
-    ax.set_title("各峰对总沉积剂量的贡献", fontsize=14, fontweight="bold")
-    ax.set_xlabel("分布峰", fontsize=12, fontweight="bold")
-    ax.set_ylabel("总沉积剂量（μg）", fontsize=12, fontweight="bold")
-    ax.grid(axis="y", linestyle="--", alpha=0.25)
+    ax.set_title("各峰对总沉积剂量的贡献", fontsize=14.5, fontweight="bold", pad=12)
+    ax.set_xlabel("分布峰", fontsize=12.5, fontweight="bold")
+    ax.set_ylabel("总沉积剂量（μg）", fontsize=12.5, fontweight="bold")
 
-    for spine in ["top", "right"]:
-        ax.spines[spine].set_visible(False)
+    apply_ax_style(ax)
 
     ymax = peak_df["总沉积剂量(μg)"].max() if len(peak_df) > 0 else 1
-    ax.set_ylim(0, ymax * 1.18 if ymax > 0 else 1)
+    ax.set_ylim(0, ymax * 1.20 if ymax > 0 else 1)
 
     for bar, val in zip(bars, peak_df["总沉积剂量(μg)"]):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + (ymax * 0.02 if ymax > 0 else 0.02),
+            bar.get_height() + (ymax * 0.025 if ymax > 0 else 0.02),
             f"{val:.3f}",
             ha="center",
             va="bottom",
-            fontsize=10
+            fontsize=10,
+            fontweight="bold",
+            color="#333333"
         )
 
     fig.tight_layout()
     return fig
 
 def plot_region_bar(summary):
-    labels = ["鼻腔前部", "鼻腔后部", "支气管", "细支气管", "肺泡区"]
+    region_order = ["ET1", "ET2", "BB", "bb", "AI"]
+    labels = [REGION_LABELS_ZH[r] for r in region_order]
     values = [
         summary["ET1_total_ug"],
         summary["ET2_total_ug"],
@@ -440,29 +458,38 @@ def plot_region_bar(summary):
         summary["bb_total_ug"],
         summary["AI_total_ug"],
     ]
+    colors = [REGION_COLORS[r] for r in region_order]
 
-    fig, ax = plt.subplots(figsize=(8.5, 5.2))
-    bars = ax.bar(labels, values, width=0.62, alpha=0.9)
+    fig, ax = plt.subplots(figsize=(8.6, 5.4))
+    bars = ax.bar(
+        labels,
+        values,
+        width=0.62,
+        color=colors,
+        edgecolor="white",
+        linewidth=1.0,
+        alpha=0.92
+    )
 
-    ax.set_title("多分散气溶胶各区域汇总沉积剂量", fontsize=14, fontweight="bold")
-    ax.set_xlabel("呼吸道区域", fontsize=12, fontweight="bold")
-    ax.set_ylabel("沉积剂量（μg）", fontsize=12, fontweight="bold")
-    ax.grid(axis="y", linestyle="--", alpha=0.25)
+    ax.set_title("多分散气溶胶各区域汇总沉积剂量", fontsize=14.5, fontweight="bold", pad=12)
+    ax.set_xlabel("呼吸道区域", fontsize=12.5, fontweight="bold")
+    ax.set_ylabel("沉积剂量（μg）", fontsize=12.5, fontweight="bold")
 
-    for spine in ["top", "right"]:
-        ax.spines[spine].set_visible(False)
+    apply_ax_style(ax)
 
     ymax = max(values) if len(values) > 0 else 1
-    ax.set_ylim(0, ymax * 1.18 if ymax > 0 else 1)
+    ax.set_ylim(0, ymax * 1.20 if ymax > 0 else 1)
 
     for bar, val in zip(bars, values):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + (ymax * 0.02 if ymax > 0 else 0.02),
+            bar.get_height() + (ymax * 0.025 if ymax > 0 else 0.02),
             f"{val:.3f}",
             ha="center",
             va="bottom",
-            fontsize=10
+            fontsize=10,
+            fontweight="bold",
+            color="#333333"
         )
 
     fig.tight_layout()
