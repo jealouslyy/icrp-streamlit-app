@@ -390,10 +390,13 @@ a2.write(f"**呼吸方式**：{breathing_mode}")
 a3.write(f"**总暴露时长**：{total_time_h:.2f} h")
 
 b1, b2, b3, b4 = st.columns(4)
-b1.write(f"**AMAD**：{mmad:.3f} μm")
-b2.write(f"**GSD**：{gsd:.2f}")
-b3.write(f"**总浓度**：{total_conc:.3f} {concentration_unit}")
-b4.write(f"**粒径范围**：{dp_min:.3f}–{dp_max:.3f} μm")
+b1.write(f"**分布峰数**：{len(modes_df)}")
+b2.write(f"**总浓度**：{total_conc:.3f} {concentration_unit}")
+b3.write(f"**粒径范围**：{dp_min:.3f}–{dp_max:.3f} μm")
+b4.write(f"**粒径划分数**：{n_bins}")
+
+st.markdown("### 多峰分布参数")
+st.dataframe(modes_df, use_container_width=True, hide_index=True)
 
 if total_time_h > 24:
     st.warning("四种活动状态总时长超过 24 h，请检查输入。")
@@ -402,63 +405,45 @@ run_btn = st.button("计算多分散气溶胶沉积剂量", use_container_width=
 
 if run_btn:
     try:
+        modes_df = modes_df.copy()
+        modes_df = modes_df.dropna(subset=["mmad", "gsd", "fraction"])
+
+        if len(modes_df) == 0:
+            raise ValueError("请至少输入一个峰的参数。")
+
+        for col in ["mmad", "gsd", "fraction"]:
+            modes_df[col] = pd.to_numeric(modes_df[col], errors="coerce")
+
+        modes_df = modes_df.dropna(subset=["mmad", "gsd", "fraction"])
+
+        if np.any(modes_df["mmad"] <= 0):
+            raise ValueError("每个峰的 mmad 必须大于 0。")
+        if np.any(modes_df["gsd"] <= 1):
+            raise ValueError("每个峰的 gsd 必须大于 1。")
+        if np.any(modes_df["fraction"] < 0):
+            raise ValueError("每个峰的 fraction 不能为负值。")
+
+        frac_sum = modes_df["fraction"].sum()
+        if frac_sum <= 0:
+            raise ValueError("fraction 总和必须大于 0。")
+
+        modes_df["fraction"] = modes_df["fraction"] / frac_sum
+
         result_df, summary = calc_polydisperse_weighted(
-        pop_key=pop_key,
-        nose_breath=nose_breath,
-        wind_speed=wind_speed,
-        rho_g=rho_g,
-        chi=chi,
-        modes_df=modes_df,
-        total_conc=total_conc,
-        concentration_unit=concentration_unit,
-        dp_min=dp_min,    
-        dp_max=dp_max,
-        n_bins=n_bins,
-        time_dict=time_dict,
-)
-
-        st.markdown("---")
-        st.subheader("计算摘要")
-
-        s1, s2, s3, s4 = st.columns(4)
-        s1.metric("吸入总质量 (μg)", f"{summary['total_inhaled_ug']:.4f}")
-        s2.metric("总沉积剂量 (μg)", f"{summary['Total_deposited_ug']:.4f}")
-        s3.metric("粒径段数", f"{len(result_df)}")
-        s4.metric("总暴露时长 (h)", f"{total_time_h:.2f}")
-
-        st.subheader("各活动状态贡献")
-        st.dataframe(summary["by_state_df"], use_container_width=True, hide_index=True)
-
-        st.subheader("粒径分布与分段结果")
-        st.dataframe(result_df, use_container_width=True, hide_index=True)
-
-        st.subheader("各区域汇总沉积剂量")
-        summary_df = make_summary_df(summary)
-        show_df = summary_df.copy()
-        show_df["沉积剂量 (μg)"] = show_df["沉积剂量 (μg)"].map(lambda x: f"{x:.6f}")
-        st.dataframe(show_df, use_container_width=True, hide_index=True)
-
-        c1, c2 = st.columns(2)
-        with c1:
-            st.pyplot(plot_distribution(result_df), use_container_width=True)
-        with c2:
-            st.pyplot(plot_region_bar(summary), use_container_width=True)
-
-        csv1 = result_df.to_csv(index=False).encode("utf-8-sig")
-        st.download_button(
-            "下载多分散分段结果 CSV",
-            data=csv1,
-            file_name="polydisperse_result.csv",
-            mime="text/csv"
+            pop_key=pop_key,
+            nose_breath=nose_breath,
+            wind_speed=wind_speed,
+            rho_g=rho_g,
+            chi=chi,
+            modes_df=modes_df,
+            total_conc=total_conc,
+            concentration_unit=concentration_unit,
+            dp_min=dp_min,
+            dp_max=dp_max,
+            n_bins=n_bins,
+            time_dict=time_dict,
         )
 
-        csv2 = summary_df.to_csv(index=False).encode("utf-8-sig")
-        st.download_button(
-            "下载区域汇总结果 CSV",
-            data=csv2,
-            file_name="polydisperse_summary.csv",
-            mime="text/csv"
-        )
-
+        ...
     except Exception as e:
         st.error(f"计算失败：{e}")
