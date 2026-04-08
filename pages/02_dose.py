@@ -145,6 +145,19 @@ def convert_concentration_to_ug_m3(conc, unit):
     else:
         raise ValueError("不支持的浓度单位。")
 
+def bin_mid_geometric(dp_min, dp_max):
+    """
+    计算粒径段的几何均值粒径，作为该粒径段的代表粒径
+    """
+    dp_min = np.asarray(dp_min, dtype=float)
+    dp_max = np.asarray(dp_max, dtype=float)
+
+    if np.any(dp_min <= 0) or np.any(dp_max <= 0):
+        raise ValueError("粒径段上下限必须大于 0。")
+    if np.any(dp_max <= dp_min):
+        raise ValueError("粒径段上限必须大于下限。")
+
+    return np.sqrt(dp_min * dp_max)
 
 def calc_dep_for_points(pop_key, behavior_key, nose_breath, wind_speed, dae_um, rho_g, chi):
     base = POP[pop_key]["base"]
@@ -372,6 +385,125 @@ def calc_dose_points_weighted(
 
     return total_result_df, summary
 
+def calc_dose_bins_weighted(
+    pop_key,
+    nose_breath,
+    wind_speed,
+    rho_g,
+    chi,
+    dp_min_list,
+    dp_max_list,
+    conc_list,
+    concentration_unit,
+    time_dict,
+):
+    dp_min_arr = np.asarray(dp_min_list, dtype=float)
+    dp_max_arr = np.asarray(dp_max_list, dtype=float)
+    conc_arr = np.asarray(conc_list, dtype=float)
+
+    if len(dp_min_arr) == 0:
+        raise ValueError("输入表不能为空。")
+    if not (len(dp_min_arr) == len(dp_max_arr) == len(conc_arr)):
+        raise ValueError("dp_min、dp_max 和浓度列表长度必须一致。")
+    if np.any(dp_min_arr <= 0) or np.any(dp_max_arr <= 0):
+        raise ValueError("粒径段上下限必须大于 0。")
+    if np.any(dp_max_arr <= dp_min_arr):
+        raise ValueError("粒径段上限必须大于下限。")
+    if np.any(conc_arr < 0):
+        raise ValueError("浓度不能为负值。")
+
+    dae_mid_arr = bin_mid_geometric(dp_min_arr, dp_max_arr)
+    conc_ug_m3 = convert_concentration_to_ug_m3(conc_arr, concentration_unit)
+
+    total_result_df = None
+    by_state_rows = []
+
+    for behavior_key in BEHAVIOR_ORDER:
+        exposure_time_h = float(time_dict.get(behavior_key, 0.0))
+        if exposure_time_h <= 0:
+            continue
+
+        ventilation_m3_h = get_ventilation_rate_m3_h(pop_key, behavior_key)
+
+        dep = calc_dep_for_points(
+            pop_key=pop_key,
+            behavior_key=behavior_key,
+            nose_breath=nose_breath,
+            wind_speed=wind_speed,
+            dae_um=dae_mid_arr,
+            rho_g=rho_g,
+            chi=chi,
+        )
+
+        n = len(dep["dae"])
+        dp_min_use = dp_min_arr[:n]
+        dp_max_use = dp_max_arr[:n]
+        conc_use = conc_ug_m3[:n]
+
+        inhaled_mass_each_ug = conc_use * ventilation_m3_h * exposure_time_h
+
+        state_df = pd.DataFrame({
+            "dp_min_um": dp_min_use,
+            "dp_max_um": dp_max_use,
+            "dae_mid_um": dep["dae"],
+            "dth_um": dep["dth"],
+            "conc_ug_m3": conc_use,
+            "ET1_df": dep["by_region"]["ET1"],
+            "ET2_df": dep["by_region"]["ET2"],
+            "BB_df": dep["by_region"]["BB"],
+            "bb_df": dep["by_region"]["bb"],
+            "AI_df": dep["by_region"]["AI"],
+            "Total_df": dep["total"],
+            "ET1_dose_ug": inhaled_mass_each_ug * dep["by_region"]["ET1"],
+            "ET2_dose_ug": inhaled_mass_each_ug * dep["by_region"]["ET2"],
+            "BB_dose_ug": inhaled_mass_each_ug * dep["by_region"]["BB"],
+            "bb_dose_ug": inhaled_mass_each_ug * dep["by_region"]["bb"],
+            "AI_dose_ug": inhaled_mass_each_ug * dep["by_region"]["AI"],
+        })
+
+        if total_result_df is None:
+            total_result_df = state_df.copy()
+        else:
+            for col in ["ET1_dose_ug", "ET2_dose_ug", "BB_dose_ug", "bb_dose_ug", "AI_dose_ug"]:
+                total_result_df[col] += state_df[col]
+
+        state_total_dep = float(
+            np.sum(state_df["ET1_dose_ug"]) +
+            np.sum(state_df["ET2_dose_ug"]) +
+            np.sum(state_df["BB_dose_ug"]) +
+            np.sum(state_df["bb_dose_ug"]) +
+            np.sum(state_df["AI_dose_ug"])
+        )
+
+        by_state_rows.append({
+            "活动状态": STATE_LABELS_ZH.get(behavior_key, behavior_key),
+            "暴露时长 (h)": exposure_time_h,
+            "通气量 (m³/h)": ventilation_m3_h,
+            "吸入质量 (μg)": float(np.sum(inhaled_mass_each_ug)),
+            "总沉积剂量 (μg)": state_total_dep,
+        })
+
+    if total_result_df is None:
+        raise ValueError("四种活动状态的暴露时长均为 0，无法计算。")
+
+    summary = {
+        "ET1_total_ug": float(np.sum(total_result_df["ET1_dose_ug"])),
+        "ET2_total_ug": float(np.sum(total_result_df["ET2_dose_ug"])),
+        "BB_total_ug": float(np.sum(total_result_df["BB_dose_ug"])),
+        "bb_total_ug": float(np.sum(total_result_df["bb_dose_ug"])),
+        "AI_total_ug": float(np.sum(total_result_df["AI_dose_ug"])),
+        "total_inhaled_ug": float(sum(row["吸入质量 (μg)"] for row in by_state_rows)),
+        "by_state_df": pd.DataFrame(by_state_rows),
+    }
+    summary["Total_deposited_ug"] = (
+        summary["ET1_total_ug"] +
+        summary["ET2_total_ug"] +
+        summary["BB_total_ug"] +
+        summary["bb_total_ug"] +
+        summary["AI_total_ug"]
+    )
+
+    return total_result_df, summary
 
 def make_single_result_df(weighted_result):
     rows = []
@@ -503,7 +635,7 @@ st.sidebar.header("参数设置")
 
 input_mode = st.sidebar.radio(
     "输入方式",
-    ["单粒径", "粒径点列表"]
+    ["单粒径", "粒径点-浓度", "粒径段-浓度"]
 )
 
 pop_key = st.sidebar.selectbox(
@@ -744,6 +876,97 @@ elif input_mode == "粒径点列表":
                 label="下载区域汇总剂量 CSV",
                 data=summary_csv_data,
                 file_name="dose_points_weighted_summary.csv",
+                mime="text/csv"
+            )
+
+elif input_mode == "粒径段列表":
+    st.subheader("粒径段-浓度输入表")
+
+    default_df = pd.DataFrame({
+        "dp_min_um": [0.01, 0.03, 0.1, 0.3, 1.0],
+        "dp_max_um": [0.03, 0.1, 0.3, 1.0, 3.0],
+        "conc": [10.0, 15.0, 25.0, 12.0, 5.0]
+    })
+
+    edited_df = st.data_editor(
+        default_df,
+        num_rows="dynamic",
+        use_container_width=True
+    )
+
+    run_bins_btn = st.button("计算粒径段列表沉积剂量", use_container_width=True)
+
+    if run_bins_btn:
+        try:
+            df_clean = edited_df.copy()
+
+            required_cols = ["dp_min_um", "dp_max_um", "conc"]
+            for col in required_cols:
+                if col not in df_clean.columns:
+                    raise ValueError(f"输入表必须包含 {col} 列。")
+
+            df_clean = df_clean.dropna(subset=required_cols)
+            if len(df_clean) == 0:
+                raise ValueError("输入表为空，请填写粒径段和浓度数据。")
+
+            for col in required_cols:
+                df_clean[col] = pd.to_numeric(df_clean[col], errors="coerce")
+            df_clean = df_clean.dropna(subset=required_cols)
+
+            if len(df_clean) == 0:
+                raise ValueError("输入表中的数据无法识别为数值。")
+
+            result_df, summary = calc_dose_bins_weighted(
+                pop_key=pop_key,
+                nose_breath=nose_breath,
+                wind_speed=wind_speed,
+                rho_g=rho_g,
+                chi=chi,
+                dp_min_list=df_clean["dp_min_um"].to_numpy(),
+                dp_max_list=df_clean["dp_max_um"].to_numpy(),
+                conc_list=df_clean["conc"].to_numpy(),
+                concentration_unit=concentration_unit,
+                time_dict=time_dict,
+            )
+
+            st.markdown("---")
+            st.subheader("计算摘要")
+
+            s1, s2, s3, s4 = st.columns(4)
+            s1.metric("吸入总质量 (μg)", f"{summary['total_inhaled_ug']:.4f}")
+            s2.metric("总沉积剂量 (μg)", f"{summary['Total_deposited_ug']:.4f}")
+            s3.metric("总暴露时长 (h)", f"{total_time_h:.2f}")
+            s4.metric("粒径段数", f"{len(result_df)}")
+
+            st.subheader("各活动状态贡献")
+            st.dataframe(summary["by_state_df"], use_container_width=True, hide_index=True)
+
+            st.subheader("各粒径段计算结果")
+            st.dataframe(result_df, use_container_width=True, hide_index=True)
+
+            st.subheader("各区域汇总沉积剂量")
+            summary_df = make_points_summary_df(summary)
+            show_summary_df = summary_df.copy()
+            show_summary_df["沉积剂量 (μg)"] = show_summary_df["沉积剂量 (μg)"].map(lambda x: f"{x:.6f}")
+            st.dataframe(show_summary_df, use_container_width=True, hide_index=True)
+
+            st.subheader("区域汇总沉积剂量柱状图")
+            fig = plot_points_summary(summary)
+            st.pyplot(fig, use_container_width=True)
+
+            csv_data = result_df.to_csv(index=False).encode("utf-8-sig")
+            st.download_button(
+                label="下载粒径段列表结果 CSV",
+                data=csv_data,
+                file_name="dose_bins_weighted_result.csv",
+                mime="text/csv"
+            )
+
+            summary_csv_data = summary_df.to_csv(index=False).encode("utf-8-sig")
+            st.download_button(
+                label="下载区域汇总剂量 CSV",
+                data=summary_csv_data,
+                file_name="dose_bins_weighted_summary.csv",
                 mime="text/csv"
             )
 
