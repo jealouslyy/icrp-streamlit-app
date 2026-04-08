@@ -21,11 +21,6 @@ plt.rcParams["axes.unicode_minus"] = False
 plt.rcParams["figure.dpi"] = 120
 
 # =========================
-# 页面配置
-# =========================
-st.set_page_config(page_title="Polydisperse Aerosol", layout="wide")
-
-# =========================
 # 常量
 # =========================
 REGIONS = ("ET1", "ET2", "BB", "bb", "AI")
@@ -112,7 +107,9 @@ def lognormal_mass_pdf(dp, mmad, gsd):
     dp = np.asarray(dp, dtype=float)
     sigma = np.log(gsd)
     mu = np.log(mmad)
-    return (1 / (dp * sigma * np.sqrt(2 * np.pi))) * np.exp(-((np.log(dp) - mu) ** 2) / (2 * sigma ** 2))
+    return (1 / (dp * sigma * np.sqrt(2 * np.pi))) * np.exp(
+        -((np.log(dp) - mu) ** 2) / (2 * sigma ** 2)
+    )
 
 def build_polydisperse_distribution_multi(modes_df, total_conc_ug_m3, dp_min, dp_max, n_bins):
     edges = np.logspace(np.log10(dp_min), np.log10(dp_max), n_bins + 1)
@@ -125,12 +122,14 @@ def build_polydisperse_distribution_multi(modes_df, total_conc_ug_m3, dp_min, dp
         mmad = float(row["mmad"])
         gsd = float(row["gsd"])
         frac = float(row["fraction"])
-
         pdf_total += frac * lognormal_mass_pdf(mids, mmad, gsd)
 
     weights = pdf_total * widths_log
-    weights = weights / np.sum(weights)
+    weights_sum = np.sum(weights)
+    if weights_sum <= 0:
+        raise ValueError("多峰分布权重计算失败，请检查 mmad、gsd 和 fraction 输入。")
 
+    weights = weights / weights_sum
     conc_each = total_conc_ug_m3 * weights
 
     return pd.DataFrame({
@@ -297,7 +296,7 @@ def plot_region_bar(summary):
     for bar, val in zip(bars, values):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + ymax * 0.02 if ymax > 0 else 0.02,
+            bar.get_height() + (ymax * 0.02 if ymax > 0 else 0.02),
             f"{val:.3f}",
             ha="center",
             va="bottom",
@@ -324,7 +323,10 @@ def plot_distribution(result_df):
 st.title("第三页：多分散气溶胶沉积计算")
 
 with st.expander("当前页面功能说明", expanded=False):
-    st.write("本页基于一个或多个对数正态峰的叠加分布，输入各峰的中值粒径、几何标准差及质量分数，并结合总质量浓度计算多分散气溶胶在呼吸道各区域的沉积剂量。")
+    st.write(
+        "本页基于一个或多个对数正态峰的叠加分布，输入各峰的中值粒径、几何标准差及质量分数，"
+        "并结合总质量浓度计算多分散气溶胶在呼吸道各区域的沉积剂量。"
+    )
 
 # =========================
 # 侧边栏参数
@@ -345,20 +347,7 @@ rho_g = st.sidebar.number_input("颗粒密度 ρ（g/cm³）", min_value=0.1, va
 chi = st.sidebar.number_input("形状因子 χ", min_value=0.1, value=1.0, step=0.1)
 
 st.sidebar.subheader("多峰分布")
-
-default_modes = pd.DataFrame({
-    "mmad": [0.08, 0.8],
-    "gsd": [1.8, 2.2],
-    "fraction": [0.4, 0.6],
-})
-
-modes_df = st.data_editor(
-    default_modes,
-    num_rows="dynamic",
-    use_container_width=True
-)
 total_conc = st.sidebar.number_input("总质量浓度", min_value=0.0, value=50.0, step=1.0)
-
 concentration_unit = st.sidebar.selectbox("浓度单位", ["μg/m³", "ng/m³", "mg/m³"], index=0)
 
 dp_min = st.sidebar.number_input("积分下限粒径（μm）", min_value=0.001, value=0.01, step=0.01, format="%.3f")
@@ -371,6 +360,20 @@ sleep_time_h = st.sidebar.number_input("睡眠时长（h）", min_value=0.0, val
 rest_time_h = st.sidebar.number_input("静坐时长（h）", min_value=0.0, value=8.0, step=0.5)
 light_time_h = st.sidebar.number_input("轻度运动时长（h）", min_value=0.0, value=4.0, step=0.5)
 heavy_time_h = st.sidebar.number_input("重度运动时长（h）", min_value=0.0, value=0.0, step=0.5)
+
+default_modes = pd.DataFrame({
+    "mmad": [0.08, 0.8],
+    "gsd": [1.8, 2.2],
+    "fraction": [0.4, 0.6],
+})
+
+st.markdown("### 多峰分布参数输入")
+modes_df = st.data_editor(
+    default_modes,
+    num_rows="dynamic",
+    use_container_width=True,
+    hide_index=True
+)
 
 time_dict = {
     "sleep": sleep_time_h,
@@ -395,7 +398,6 @@ b2.write(f"**总浓度**：{total_conc:.3f} {concentration_unit}")
 b3.write(f"**粒径范围**：{dp_min:.3f}–{dp_max:.3f} μm")
 b4.write(f"**粒径划分数**：{n_bins}")
 
-st.markdown("### 多峰分布参数")
 st.dataframe(modes_df, use_container_width=True, hide_index=True)
 
 if total_time_h > 24:
@@ -406,15 +408,18 @@ run_btn = st.button("计算多分散气溶胶沉积剂量", use_container_width=
 if run_btn:
     try:
         modes_df = modes_df.copy()
-        modes_df = modes_df.dropna(subset=["mmad", "gsd", "fraction"])
+
+        required_cols = ["mmad", "gsd", "fraction"]
+        if not all(col in modes_df.columns for col in required_cols):
+            raise ValueError("多峰分布表必须包含 mmad、gsd 和 fraction 三列。")
+
+        for col in required_cols:
+            modes_df[col] = pd.to_numeric(modes_df[col], errors="coerce")
+
+        modes_df = modes_df.dropna(subset=required_cols)
 
         if len(modes_df) == 0:
             raise ValueError("请至少输入一个峰的参数。")
-
-        for col in ["mmad", "gsd", "fraction"]:
-            modes_df[col] = pd.to_numeric(modes_df[col], errors="coerce")
-
-        modes_df = modes_df.dropna(subset=["mmad", "gsd", "fraction"])
 
         if np.any(modes_df["mmad"] <= 0):
             raise ValueError("每个峰的 mmad 必须大于 0。")
@@ -422,6 +427,8 @@ if run_btn:
             raise ValueError("每个峰的 gsd 必须大于 1。")
         if np.any(modes_df["fraction"] < 0):
             raise ValueError("每个峰的 fraction 不能为负值。")
+        if dp_min <= 0 or dp_max <= 0 or dp_min >= dp_max:
+            raise ValueError("粒径范围设置不正确，请确保下限 > 0 且上限 > 下限。")
 
         frac_sum = modes_df["fraction"].sum()
         if frac_sum <= 0:
@@ -486,3 +493,7 @@ if run_btn:
             file_name="polydisperse_summary.csv",
             mime="text/csv"
         )
+
+    except Exception as e:
+        st.error(f"计算失败：{e}")
+        st.exception(e)
