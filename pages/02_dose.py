@@ -412,7 +412,7 @@ def plot_single_region_dose(weighted_result):
 
     ax.set_ylabel("区域沉积剂量（μg）", fontsize=13, fontweight="bold")
     ax.set_xlabel("呼吸道区域", fontsize=13, fontweight="bold")
-    ax.set_title("四状态时间加权后的区域沉积剂量", fontsize=15, fontweight="bold", pad=12)
+    ax.set_title("呼吸道各区域沉积剂量分布", fontsize=15, fontweight="bold", pad=12)
 
     ax.tick_params(axis="x", labelsize=12, width=1.1, length=5)
     ax.tick_params(axis="y", labelsize=11, width=1.1, length=5)
