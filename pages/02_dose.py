@@ -566,50 +566,52 @@ def make_points_summary_df(summary):
         ]
     })
 
-
 def plot_single_region_dose(weighted_result):
-    fig, ax = plt.subplots(figsize=(8.8, 5.6))
+    fig, ax = plt.subplots(figsize=(8.8, 5.8))
 
     labels = [REGION_LABELS_ZH[r] for r in REGIONS]
     values = [weighted_result["by_region_total_ug"][r] for r in REGIONS]
+    colors = [REGION_COLORS[r] for r in REGIONS]
 
-    bars = ax.bar(labels, values, width=0.62, alpha=0.9)
+    bars = ax.bar(
+        labels,
+        values,
+        width=0.62,
+        color=colors,
+        edgecolor="white",
+        linewidth=1.0,
+        alpha=0.92
+    )
 
     ax.set_ylabel("区域沉积剂量（μg）", fontsize=13, fontweight="bold")
     ax.set_xlabel("呼吸道区域", fontsize=13, fontweight="bold")
     ax.set_title("呼吸道各区域沉积剂量分布", fontsize=15, fontweight="bold", pad=12)
 
-    ax.tick_params(axis="x", labelsize=12, width=1.1, length=5)
-    ax.tick_params(axis="y", labelsize=11, width=1.1, length=5)
-    ax.grid(axis="y", linestyle="--", alpha=0.25)
-
-    for spine in ["top", "right"]:
-        ax.spines[spine].set_visible(False)
-    ax.spines["left"].set_linewidth(1.2)
-    ax.spines["bottom"].set_linewidth(1.2)
+    apply_ax_style(ax)
 
     ymax = max(values) if len(values) > 0 else 1
-    ax.set_ylim(0, ymax * 1.18 if ymax > 0 else 1)
+    ax.set_ylim(0, ymax * 1.20 if ymax > 0 else 1)
 
     for bar, val in zip(bars, values):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + ymax * 0.02 if ymax > 0 else 0.02,
+            bar.get_height() + ymax * 0.025 if ymax > 0 else 0.02,
             f"{val:.3f}",
             ha="center",
             va="bottom",
             fontsize=10.5,
-            fontweight="bold"
+            fontweight="bold",
+            color="#333333"
         )
 
     fig.tight_layout()
     return fig
 
-
 def plot_points_summary(summary):
-    fig, ax = plt.subplots(figsize=(8.8, 5.6))
+    fig, ax = plt.subplots(figsize=(8.8, 5.8))
 
-    labels = ["鼻腔前部", "鼻腔后部", "支气管", "细支气管", "肺泡区"]
+    region_order = ["ET1", "ET2", "BB", "bb", "AI"]
+    labels = [REGION_LABELS_ZH[r] for r in region_order]
     values = [
         summary["ET1_total_ug"],
         summary["ET2_total_ug"],
@@ -617,39 +619,41 @@ def plot_points_summary(summary):
         summary["bb_total_ug"],
         summary["AI_total_ug"],
     ]
+    colors = [REGION_COLORS[r] for r in region_order]
 
-    bars = ax.bar(labels, values, width=0.62, alpha=0.9)
+    bars = ax.bar(
+        labels,
+        values,
+        width=0.62,
+        color=colors,
+        edgecolor="white",
+        linewidth=1.0,
+        alpha=0.92
+    )
 
     ax.set_ylabel("汇总沉积剂量（μg）", fontsize=13, fontweight="bold")
     ax.set_xlabel("呼吸道区域", fontsize=13, fontweight="bold")
     ax.set_title("各区域汇总沉积剂量", fontsize=15, fontweight="bold", pad=12)
 
-    ax.tick_params(axis="x", labelsize=12, width=1.1, length=5)
-    ax.tick_params(axis="y", labelsize=11, width=1.1, length=5)
-    ax.grid(axis="y", linestyle="--", alpha=0.25)
-
-    for spine in ["top", "right"]:
-        ax.spines[spine].set_visible(False)
-    ax.spines["left"].set_linewidth(1.2)
-    ax.spines["bottom"].set_linewidth(1.2)
+    apply_ax_style(ax)
 
     ymax = max(values) if len(values) > 0 else 1
-    ax.set_ylim(0, ymax * 1.18 if ymax > 0 else 1)
+    ax.set_ylim(0, ymax * 1.20 if ymax > 0 else 1)
 
     for bar, val in zip(bars, values):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + ymax * 0.02 if ymax > 0 else 0.02,
+            bar.get_height() + ymax * 0.025 if ymax > 0 else 0.02,
             f"{val:.3f}",
             ha="center",
             va="bottom",
             fontsize=10.5,
-            fontweight="bold"
+            fontweight="bold",
+            color="#333333"
         )
 
     fig.tight_layout()
     return fig
-
 
 # =========================
 # 页面标题
