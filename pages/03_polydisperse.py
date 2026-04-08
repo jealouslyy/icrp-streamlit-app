@@ -654,7 +654,10 @@ if run_btn:
         st.dataframe(summary["by_state_df"], use_container_width=True, hide_index=True)
 
         st.subheader("粒径分布与分段结果")
-        show_result_df = result_df.rename(columns={
+        
+        cols_to_hide = [c for c in result_df.columns if c.startswith("peak")]
+        
+        show_result_df = result_df.drop(columns=cols_to_hide).rename(columns={
             "dp_min_um": "粒径下限（μm）",
             "dp_max_um": "粒径上限（μm）",
             "dae_um": "代表粒径（μm）",
@@ -673,6 +676,7 @@ if run_btn:
             "bb_dose_ug": "bb沉积剂量（μg）",
             "AI_dose_ug": "AI沉积剂量（μg）",
         })
+        
         st.dataframe(show_result_df, use_container_width=True, hide_index=True)
 
         st.subheader("各区域汇总沉积剂量")
