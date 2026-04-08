@@ -589,7 +589,7 @@ def plot_points_summary(summary):
 
     ax.set_ylabel("汇总沉积剂量（μg）", fontsize=13, fontweight="bold")
     ax.set_xlabel("呼吸道区域", fontsize=13, fontweight="bold")
-    ax.set_title("四状态时间加权后的各区域汇总沉积剂量", fontsize=15, fontweight="bold", pad=12)
+    ax.set_title("各区域汇总沉积剂量", fontsize=15, fontweight="bold", pad=12)
 
     ax.tick_params(axis="x", labelsize=12, width=1.1, length=5)
     ax.tick_params(axis="y", labelsize=11, width=1.1, length=5)
@@ -702,7 +702,7 @@ st.markdown("### 当前参数")
 c1, c2, c3 = st.columns(3)
 c1.write(f"**输入方式**：{input_mode}")
 c2.write(f"**人群**：{POP_LABELS_ZH.get(pop_key, pop_key)}")
-c3.write("**活动状态**：四状态时间加权")
+c3.write("**活动状态**：四种活动状态下的时间加权")
 
 c4, c5, c6, c7 = st.columns(4)
 c4.write(f"**呼吸方式**：{'鼻呼吸' if nose_breath else '口呼吸'}")
