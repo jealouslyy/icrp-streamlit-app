@@ -20,6 +20,39 @@ plt.rcParams["font.sans-serif"] = [
 plt.rcParams["axes.unicode_minus"] = False
 
 # =========================
+# 统一绘图风格
+# =========================
+REGION_COLORS = {
+    "ET1": "#4C78A8",   # 蓝
+    "ET2": "#72B7B2",   # 青
+    "BB":  "#54A24B",   # 绿
+    "bb":  "#F58518",   # 橙
+    "AI":  "#E45756",   # 红
+}
+
+TOTAL_COLOR = "#222222"
+BAR_COLOR = "#6FA8DC"
+BAR_EDGE = "#2F5597"
+
+PEAK_COLORS = [
+    "#4C78A8", "#F58518", "#54A24B", "#E45756",
+    "#72B7B2", "#B279A2", "#FF9DA6", "#9D755D"
+]
+
+def apply_ax_style(ax):
+    ax.set_facecolor("#FAFAFA")
+    ax.grid(axis="y", linestyle="--", linewidth=0.8, alpha=0.30)
+    ax.grid(axis="x", visible=False)
+
+    for spine in ["top", "right"]:
+        ax.spines[spine].set_visible(False)
+    ax.spines["left"].set_linewidth(1.1)
+    ax.spines["bottom"].set_linewidth(1.1)
+
+    ax.tick_params(axis="x", labelsize=11, width=1.0, length=4)
+    ax.tick_params(axis="y", labelsize=11, width=1.0, length=4)
+
+# =========================
 # 页面配置
 # =========================
 st.set_page_config(
