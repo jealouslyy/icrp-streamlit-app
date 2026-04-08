@@ -287,7 +287,6 @@ run_all_btn = st.sidebar.button("全部计算", use_container_width=True)
 # =========================
 with st.expander("当前页面功能说明", expanded=False):
     st.write("本页用于计算单粒径颗粒在呼吸道各区域的沉积分数，并绘制不同粒径下的分区沉积分数曲线。")
-    st.write("后续若增加剂量计算、多分散沉积计算等功能，建议拆分为独立页面。")
 
 # =========================
 # 计算逻辑
