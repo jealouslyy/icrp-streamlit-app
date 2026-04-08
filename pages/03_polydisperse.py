@@ -521,7 +521,12 @@ b2.write(f"**总浓度**：{total_conc:.3f} {concentration_unit}")
 b3.write(f"**粒径范围**：{dp_min:.3f}–{dp_max:.3f} μm")
 b4.write(f"**粒径划分数**：{n_bins}")
 
-st.dataframe(modes_df, use_container_width=True, hide_index=True)
+show_modes_df = modes_df.rename(columns={
+    "mmad": "质量中值空气动力学直径 MMAD（μm）",
+    "gsd": "几何标准差 GSD",
+    "fraction": "质量分数",
+})
+st.dataframe(show_modes_df, use_container_width=True, hide_index=True)
 
 if total_time_h > 24:
     st.warning("四种活动状态总时长超过 24 h，请检查输入。")
