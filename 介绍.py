@@ -4,17 +4,56 @@ st.set_page_config(page_title="呼吸道颗粒物沉积计算软件", layout="wi
 
 st.markdown("""
 <style>
-/* ===== 全局标题加粗一点 ===== */
-h1, h2, h3, h4 {
+/* ===== 页面整体基础文字 ===== */
+html, body, [class*="css"] {
+    font-size: 18px !important;
+    color: #24364b !important;
+}
+
+/* ===== 全局标题 ===== */
+h1 {
     font-weight: 800 !important;
+    font-size: 2.8rem !important;
     color: #1f2a44 !important;
+}
+
+h2 {
+    font-weight: 800 !important;
+    font-size: 2.1rem !important;
+    color: #1f2a44 !important;
+}
+
+h3 {
+    font-weight: 800 !important;
+    font-size: 1.75rem !important;
+    color: #1f2a44 !important;
+}
+
+h4 {
+    font-weight: 800 !important;
+    font-size: 1.4rem !important;
+    color: #1f2a44 !important;
+}
+
+/* ===== 正文段落 ===== */
+p, li, div[data-testid="stMarkdownContainer"] p {
+    font-size: 1.18rem !important;
+    line-height: 1.75 !important;
+    color: #24364b !important;
+}
+
+/* ===== caption 说明文字 ===== */
+div[data-testid="stCaptionContainer"] {
+    font-size: 1.02rem !important;
+    line-height: 1.7 !important;
+    color: #5c687a !important;
 }
 
 /* ===== 所有按钮基础样式 ===== */
 div.stButton > button {
     font-weight: 700 !important;
-    font-size: 20px !important;
-    min-height: 56px !important;
+    font-size: 22px !important;
+    min-height: 60px !important;
     border-radius: 12px !important;
     border: 2px solid #c7d3e3 !important;
     background-color: #ffffff !important;
@@ -63,9 +102,10 @@ div.stButton > button[kind="primary"]:active {
     border-color: #36527d !important;
 }
 
-/* ===== expander 标题稍微加粗 ===== */
+/* ===== expander 标题 ===== */
 details summary {
     font-weight: 700 !important;
+    font-size: 1.12rem !important;
     color: #24364b !important;
 }
 </style>
@@ -167,27 +207,27 @@ s1, s2, s3, s4 = st.columns(4)
 
 with s1:
     with st.container(border=True):
-        st.markdown("**步骤 1**")
-        st.markdown("选择功能模块")
-        st.caption("进入沉积分数、沉积剂量或多分散气溶胶计算页面")
+        st.markdown("#### 步骤 1")
+        st.markdown("**选择功能模块**")
+        st.markdown("进入沉积分数、沉积剂量或多分散气溶胶计算页面。")
 
 with s2:
     with st.container(border=True):
-        st.markdown("**步骤 2**")
-        st.markdown("设置参数")
-        st.caption("选择人群、呼吸方式、活动状态，并输入粒径或浓度参数")
+        st.markdown("#### 步骤 2")
+        st.markdown("**设置参数**")
+        st.markdown("选择人群、呼吸方式、活动状态，并输入粒径或浓度参数。")
 
 with s3:
     with st.container(border=True):
-        st.markdown("**步骤 3**")
-        st.markdown("执行计算")
-        st.caption("查看呼吸道各区域沉积分数、沉积剂量及图表结果")
+        st.markdown("#### 步骤 3")
+        st.markdown("**执行计算**")
+        st.markdown("查看呼吸道各区域沉积分数、沉积剂量及图表结果。")
 
 with s4:
     with st.container(border=True):
-        st.markdown("**步骤 4**")
-        st.markdown("导出结果")
-        st.caption("按需导出结果表格与图形，用于后续分析与展示")
+        st.markdown("#### 步骤 4")
+        st.markdown("**导出结果**")
+        st.markdown("按需导出结果表格与图形，用于后续分析与展示。")
 
 st.markdown("---")
 
