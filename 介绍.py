@@ -99,7 +99,7 @@ st.markdown(
 b1, b2 = st.columns([1, 5])
 
 with b1:
-    if st.button("开始体验", type="primary", use_container_width=True):
+    if st.button("开始使用", type="primary", use_container_width=True):
         go_page("pages/01_呼吸道沉积分数计算.py")
 
 st.markdown("---")
