@@ -3,6 +3,46 @@ import streamlit as st
 st.set_page_config(page_title="呼吸道颗粒物沉积计算软件", layout="wide")
 
 # =========================
+# 按钮样式增强
+# =========================
+st.markdown("""
+<style>
+/* 所有按钮基础样式 */
+div.stButton > button {
+    font-weight: 700 !important;
+    font-size: 20px !important;
+    min-height: 56px !important;
+    border-radius: 12px !important;
+    border: 2px solid #c7d3e3 !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+/* 普通按钮悬停效果 */
+div.stButton > button:hover {
+    border-color: #5b8def !important;
+    color: #1d4ed8 !important;
+    box-shadow: 0 0 0 0.15rem rgba(91, 141, 239, 0.16) !important;
+}
+
+/* 点击时轻微缩放 */
+div.stButton > button:active {
+    transform: scale(0.985) !important;
+}
+
+/* 聚焦效果 */
+div.stButton > button:focus {
+    outline: none !important;
+    box-shadow: 0 0 0 0.18rem rgba(91, 141, 239, 0.18) !important;
+}
+
+/* 容器内标题稍微更醒目 */
+h1, h2, h3, h4 {
+    font-weight: 800 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# =========================
 # 一些小工具
 # =========================
 def go_page(page_name: str):
@@ -30,7 +70,7 @@ st.markdown(
 b1, b2, b3 = st.columns([1, 1, 3])
 
 with b1:
-    if st.button("开始体验", use_container_width=True):
+    if st.button("开始体验", type="primary", use_container_width=True):
         go_page("pages/01_呼吸道沉积分数计算.py")
 
 with b2:
@@ -61,7 +101,7 @@ with c1:
 计算前鼻区域、后鼻-咽喉区域、支气管区域、细支气管区域与肺泡-间质区域的沉积分数。
 """
         )
-        if st.button("进入沉积分数计算", key="go_frac", use_container_width=True):
+        if st.button("进入沉积分数计算", key="go_frac", type="primary", use_container_width=True):
             go_page("pages/01_呼吸道沉积分数计算.py")
 
     with st.container(border=True):
@@ -72,7 +112,7 @@ with c1:
 计算多分散气溶胶粒径分布及各区域沉积结果。
 """
         )
-        if st.button("进入多分散气溶胶计算", key="go_poly", use_container_width=True):
+        if st.button("进入多分散气溶胶计算", key="go_poly", type="primary", use_container_width=True):
             go_page("pages/03_多分散气溶胶沉积计算.py")
 
 with c2:
@@ -84,7 +124,7 @@ with c2:
 计算呼吸道各区域沉积剂量。
 """
         )
-        if st.button("进入沉积剂量计算", key="go_dose", use_container_width=True):
+        if st.button("进入沉积剂量计算", key="go_dose", type="primary", use_container_width=True):
             go_page("pages/02_呼吸道沉积剂量计算.py")
 
     with st.container(border=True):
@@ -184,7 +224,7 @@ with st.expander("模型依据与适用说明"):
 - 本平台基于 ICRP 呼吸道沉积模型构建。  
 - 支持不同人群、呼吸方式与活动状态下的颗粒物沉积分析。  
 - 可用于科研分析、教学展示及案例比较。  
-- 结果解释应结合输入参数范围、粒径定义与具体应用场景综合判断。    
+- 结果解释应结合输入参数范围、粒径定义与具体应用场景综合判断。  
 """
     )
 
