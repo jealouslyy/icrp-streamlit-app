@@ -67,21 +67,11 @@ st.markdown(
 # =========================
 # 顶部快捷按钮
 # =========================
-b1, b2, b3 = st.columns([1, 1, 3])
+b1, b2 = st.columns([1, 5])
 
 with b1:
     if st.button("开始体验", type="primary", use_container_width=True):
         go_page("pages/01_呼吸道沉积分数计算.py")
-
-with b2:
-    if st.button("加载示例案例", use_container_width=True):
-        st.session_state["demo_loaded"] = True
-        st.session_state["demo_pop"] = "30岁男性"
-        st.session_state["demo_breath"] = "鼻呼吸"
-        st.session_state["demo_activity"] = "静坐"
-        st.session_state["demo_dp"] = 1.0
-        st.session_state["demo_conc"] = 50.0
-        st.success("示例参数已写入会话，可进入对应功能页继续计算。")
 
 st.markdown("---")
 
@@ -136,49 +126,6 @@ with c2:
 """
         )
         st.button("查看导出说明", key="export_note", use_container_width=True)
-
-st.markdown("---")
-
-# =========================
-# 示例体验区
-# =========================
-st.subheader("示例体验")
-
-e1, e2, e3 = st.columns(3)
-
-with e1:
-    with st.container(border=True):
-        st.markdown("**示例 1：单粒径沉积**")
-        st.caption("成人静坐、鼻呼吸条件下的单粒径沉积分数计算")
-        if st.button("加载示例 1", key="demo1", use_container_width=True):
-            st.session_state["demo_loaded"] = True
-            st.session_state["demo_type"] = "single"
-            st.session_state["demo_pop"] = "30岁男性"
-            st.session_state["demo_breath"] = "鼻呼吸"
-            st.session_state["demo_activity"] = "静坐"
-            st.session_state["demo_dp"] = 1.0
-            st.success("示例 1 已加载。")
-
-with e2:
-    with st.container(border=True):
-        st.markdown("**示例 2：粒径列表输入**")
-        st.caption("使用多个粒径点查看各区域沉积变化趋势")
-        if st.button("加载示例 2", key="demo2", use_container_width=True):
-            st.session_state["demo_loaded"] = True
-            st.session_state["demo_type"] = "list"
-            st.session_state["demo_dp_list"] = [0.01, 0.05, 0.1, 0.5, 1.0, 2.5, 5.0]
-            st.success("示例 2 已加载。")
-
-with e3:
-    with st.container(border=True):
-        st.markdown("**示例 3：多分散气溶胶**")
-        st.caption("基于 MMAD / GSD 的多分散气溶胶沉积计算")
-        if st.button("加载示例 3", key="demo3", use_container_width=True):
-            st.session_state["demo_loaded"] = True
-            st.session_state["demo_type"] = "poly"
-            st.session_state["demo_mmad"] = 0.3
-            st.session_state["demo_gsd"] = 2.0
-            st.success("示例 3 已加载。")
 
 st.markdown("---")
 
