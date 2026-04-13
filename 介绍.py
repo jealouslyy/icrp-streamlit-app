@@ -2,42 +2,71 @@ import streamlit as st
 
 st.set_page_config(page_title="呼吸道颗粒物沉积计算软件", layout="wide")
 
-# =========================
-# 按钮样式增强
-# =========================
 st.markdown("""
 <style>
-/* 所有按钮基础样式 */
+/* ===== 全局标题加粗一点 ===== */
+h1, h2, h3, h4 {
+    font-weight: 800 !important;
+    color: #1f2a44 !important;
+}
+
+/* ===== 所有按钮基础样式 ===== */
 div.stButton > button {
     font-weight: 700 !important;
     font-size: 20px !important;
     min-height: 56px !important;
     border-radius: 12px !important;
     border: 2px solid #c7d3e3 !important;
+    background-color: #ffffff !important;
+    color: #24364b !important;
     transition: all 0.2s ease-in-out !important;
 }
 
-/* 普通按钮悬停效果 */
+/* ===== 普通按钮悬停 ===== */
 div.stButton > button:hover {
-    border-color: #5b8def !important;
-    color: #1d4ed8 !important;
-    box-shadow: 0 0 0 0.15rem rgba(91, 141, 239, 0.16) !important;
+    border-color: #6f8fb8 !important;
+    color: #1d4f91 !important;
+    background-color: #f7faff !important;
+    box-shadow: 0 4px 12px rgba(80, 110, 150, 0.12) !important;
 }
 
-/* 点击时轻微缩放 */
+/* ===== 点击时轻微缩放 ===== */
 div.stButton > button:active {
     transform: scale(0.985) !important;
 }
 
-/* 聚焦效果 */
+/* ===== 聚焦效果 ===== */
 div.stButton > button:focus {
     outline: none !important;
-    box-shadow: 0 0 0 0.18rem rgba(91, 141, 239, 0.18) !important;
+    box-shadow: 0 0 0 0.18rem rgba(100, 140, 200, 0.16) !important;
 }
 
-/* 容器内标题稍微更醒目 */
-h1, h2, h3, h4 {
+/* ===== primary 按钮样式：主入口按钮 ===== */
+div.stButton > button[kind="primary"] {
+    background: #4f6fa3 !important;
+    color: white !important;
+    border: 2px solid #4f6fa3 !important;
     font-weight: 800 !important;
+}
+
+/* ===== primary 按钮悬停 ===== */
+div.stButton > button[kind="primary"]:hover {
+    background: #3f5f90 !important;
+    border-color: #3f5f90 !important;
+    color: white !important;
+    box-shadow: 0 6px 14px rgba(63, 95, 144, 0.22) !important;
+}
+
+/* ===== primary 按钮点击 ===== */
+div.stButton > button[kind="primary"]:active {
+    background: #36527d !important;
+    border-color: #36527d !important;
+}
+
+/* ===== expander 标题稍微加粗 ===== */
+details summary {
+    font-weight: 700 !important;
+    color: #24364b !important;
 }
 </style>
 """, unsafe_allow_html=True)
